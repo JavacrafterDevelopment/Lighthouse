@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Lighthouse</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="app">
+
+    <div id="titlebar">
+      <div id="brand">
+        <svg width="17" height="19" viewBox="0 0 17 19" fill="none" aria-hidden="true">
+          <path d="M6.6 6.6h3.8l1.5 10.9H5.1L6.6 6.6z" fill="#6B4F35"/>
+          <path d="M6.9 9.4h3.2M6.6 12.4h3.8" stroke="#F4EEE2" stroke-width="1.1"/>
+          <rect x="6.1" y="4.2" width="4.8" height="2.2" rx=".6" fill="#4A3524"/>
+          <circle cx="8.5" cy="2.6" r="1.5" fill="#A8843F"/>
+          <path d="M6.6 2.6L1 1.2M10.4 2.6L16 1.2M6.9 3.6L2 5.4M10.1 3.6L15 5.4"
+                stroke="#A8843F" stroke-width=".9" stroke-linecap="round" opacity=".55"/>
+          <path d="M3.6 17.5h9.8" stroke="#4A3524" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <span id="wordmark">Light<span class="beam">house</span></span>
+      </div>
+
+      <div id="winbtns">
+        <button class="winbtn" data-win="minimize" title="Minimise">
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 5h8" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <button class="winbtn" data-win="maximize" title="Maximise">
+          <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1.2" y="1.2" width="7.6" height="7.6" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <button class="winbtn close" data-win="close" title="Close to tray">
+          <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.4 1.4l7.2 7.2M8.6 1.4L1.4 8.6" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="searchbar">
+      <div id="searchwrap">
+        <span class="glass">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <circle cx="6.4" cy="6.4" r="4.6" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M9.9 9.9l3.4 3.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <input id="q" type="text" spellcheck="false" autocomplete="off"
+               placeholder="Search every file and folder…" autofocus>
+        <button id="clear" title="Clear">
+          <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="chips">
+        <button class="chip" data-filter="types" data-value="folders" title="Only folders">Folders</button>
+        <button class="chip" data-filter="types" data-value="files" title="Only files">Files</button>
+        <button class="chip" data-filter="mode" data-value="startsWith" title="Match only names that begin with what you type">Starts with</button>
+      </div>
+    </div>
+
+    <div id="columns">
+      <span>Name</span>
+      <span>Type</span>
+      <span class="num">Size</span>
+      <span class="num">Modified</span>
+    </div>
+
+    <div id="body">
+      <div id="scroller">
+        <div id="sizer"><div id="rows"></div></div>
+      </div>
+
+      <div id="empty" class="on">
+        <svg width="42" height="48" viewBox="0 0 17 19" fill="none" opacity=".5">
+          <path d="M6.6 6.6h3.8l1.5 10.9H5.1L6.6 6.6z" fill="#8C7A66"/>
+          <rect x="6.1" y="4.2" width="4.8" height="2.2" rx=".6" fill="#8C7A66"/>
+          <circle cx="8.5" cy="2.6" r="1.5" fill="#A8843F"/>
+          <path d="M3.6 17.5h9.8" stroke="#8C7A66" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <h2 id="emptyTitle">Building the index</h2>
+        <p id="emptyText">Reading the file table straight off your drives. This usually takes a few seconds.</p>
+      </div>
+    </div>
+
+    <div id="status">
+      <span id="lamp" class="scanning"></span>
+      <span id="statusText">Starting up</span>
+      <span class="grow"></span>
+      <span id="counts"></span>
+    </div>
+
+  </div>
+
+  <div id="menu">
+    <button data-act="open">Open</button>
+    <button data-act="openFolder">Open containing folder</button>
+    <button data-act="reveal">Show in Explorer</button>
+    <hr>
+    <button data-act="copyPath">Copy full path</button>
+    <button data-act="copyName">Copy name</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

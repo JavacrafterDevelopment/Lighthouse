@@ -201,6 +201,151 @@ internal static partial class NativeMethods
         [PreserveSig] int GetIcon(int i, int flags, out IntPtr picon);
     }
 
+    // ------------------------------------------------ shell context menus
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr ILCreateFromPath(string pszPath);
+
+    [DllImport("shell32.dll")]
+    public static extern void ILFree(IntPtr pidl);
+
+    [DllImport("shell32.dll")]
+    public static extern int SHBindToParent(
+        IntPtr pidl, ref Guid riid, out IShellFolder ppv, out IntPtr ppidlLast);
+
+    public static Guid IID_IShellFolder = new("000214E6-0000-0000-C000-000000000046");
+    public static Guid IID_IContextMenu = new("000214E4-0000-0000-C000-000000000046");
+    public static Guid IID_IContextMenu2 = new("000214F4-0000-0000-C000-000000000046");
+
+    [ComImport]
+    [Guid("000214E6-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IShellFolder
+    {
+        // Only GetUIObjectOf is used; the rest exist so the vtable lines up.
+        [PreserveSig] int ParseDisplayName(IntPtr hwnd, IntPtr pbc, [MarshalAs(UnmanagedType.LPWStr)] string pszDisplayName,
+            ref uint pchEaten, out IntPtr ppidl, ref uint pdwAttributes);
+        [PreserveSig] int EnumObjects(IntPtr hwnd, int grfFlags, out IntPtr ppenumIDList);
+        [PreserveSig] int BindToObject(IntPtr pidl, IntPtr pbc, ref Guid riid, out IntPtr ppv);
+        [PreserveSig] int BindToStorage(IntPtr pidl, IntPtr pbc, ref Guid riid, out IntPtr ppv);
+        [PreserveSig] int CompareIDs(IntPtr lParam, IntPtr pidl1, IntPtr pidl2);
+        [PreserveSig] int CreateViewObject(IntPtr hwndOwner, ref Guid riid, out IntPtr ppv);
+        // LPArray is not optional here: array parameters on a COM interface default to
+        // SAFEARRAY marshalling, which hands the shell a pointer it cannot read.
+        [PreserveSig] int GetAttributesOf(uint cidl,
+            [In, MarshalAs(UnmanagedType.LPArray)] IntPtr[] apidl, ref uint rgfInOut);
+        [PreserveSig] int GetUIObjectOf(IntPtr hwndOwner, uint cidl,
+            [In, MarshalAs(UnmanagedType.LPArray)] IntPtr[] apidl,
+            ref Guid riid, IntPtr rgfReserved, out IntPtr ppv);
+        [PreserveSig] int GetDisplayNameOf(IntPtr pidl, uint uFlags, IntPtr pName);
+        [PreserveSig] int SetNameOf(IntPtr hwnd, IntPtr pidl, [MarshalAs(UnmanagedType.LPWStr)] string pszName,
+            uint uFlags, out IntPtr ppidlOut);
+    }
+
+    [ComImport]
+    [Guid("000214E4-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IContextMenu
+    {
+        [PreserveSig] int QueryContextMenu(IntPtr hMenu, uint indexMenu, uint idCmdFirst, uint idCmdLast, uint uFlags);
+        [PreserveSig] int InvokeCommand(ref CMINVOKECOMMANDINFOEX pici);
+        [PreserveSig] int GetCommandString(IntPtr idCmd, uint uType, IntPtr pReserved, IntPtr pszName, uint cchMax);
+    }
+
+    /// <summary>
+    /// Extensions that draw their own menu items need the popup messages forwarded,
+    /// otherwise cascading submenus (7-Zip's, for one) come back empty.
+    /// </summary>
+    [ComImport]
+    [Guid("000214F4-0000-0000-C000-000000000046")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    public interface IContextMenu2
+    {
+        [PreserveSig] int QueryContextMenu(IntPtr hMenu, uint indexMenu, uint idCmdFirst, uint idCmdLast, uint uFlags);
+        [PreserveSig] int InvokeCommand(ref CMINVOKECOMMANDINFOEX pici);
+        [PreserveSig] int GetCommandString(IntPtr idCmd, uint uType, IntPtr pReserved, IntPtr pszName, uint cchMax);
+        [PreserveSig] int HandleMenuMsg(uint uMsg, IntPtr wParam, IntPtr lParam);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CMINVOKECOMMANDINFOEX
+    {
+        public int cbSize;
+        public uint fMask;
+        public IntPtr hwnd;
+        public IntPtr lpVerb;
+        [MarshalAs(UnmanagedType.LPStr)] public string? lpParameters;
+        [MarshalAs(UnmanagedType.LPStr)] public string? lpDirectory;
+        public int nShow;
+        public uint dwHotKey;
+        public IntPtr hIcon;
+        [MarshalAs(UnmanagedType.LPStr)] public string? lpTitle;
+        public IntPtr lpVerbW;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpParametersW;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpDirectoryW;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpTitleW;
+        public POINT ptInvoke;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT { public int x; public int y; }
+
+    public const uint CMF_NORMAL = 0x00000000;
+    public const uint CMF_EXPLORE = 0x00000004;
+    public const uint CMF_EXTENDEDVERBS = 0x00000100;
+    public const uint CMIC_MASK_UNICODE = 0x00004000;
+    /// <summary>Asks GetCommandString for the canonical verb ("open", "runas", ...) as UTF-16.</summary>
+    public const uint GCS_VERBW = 0x00000004;
+    public const int SW_SHOWNORMAL = 1;
+
+    public const uint WM_INITMENUPOPUP = 0x0117;
+
+    // ------------------------------------------------------------ HMENU
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MENUITEMINFO
+    {
+        public uint cbSize;
+        public uint fMask;
+        public uint fType;
+        public uint fState;
+        public uint wID;
+        public IntPtr hSubMenu;
+        public IntPtr hbmpChecked;
+        public IntPtr hbmpUnchecked;
+        public IntPtr dwItemData;
+        public IntPtr dwTypeData;
+        public uint cch;
+        public IntPtr hbmpItem;
+    }
+
+    public const uint MIIM_STATE = 0x00000001;
+    public const uint MIIM_ID = 0x00000002;
+    public const uint MIIM_SUBMENU = 0x00000004;
+    public const uint MIIM_STRING = 0x00000040;
+    public const uint MIIM_BITMAP = 0x00000080;
+    public const uint MIIM_FTYPE = 0x00000100;
+
+    public const uint MFT_SEPARATOR = 0x00000800;
+    public const uint MFS_GRAYED = 0x00000003;
+    public const uint MFS_CHECKED = 0x00000008;
+    public const uint MFS_DEFAULT = 0x00001000;
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CreatePopupMenu();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyMenu(IntPtr hMenu);
+
+    [DllImport("user32.dll")]
+    public static extern int GetMenuItemCount(IntPtr hMenu);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetMenuItemInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetMenuItemInfo(IntPtr hMenu, uint item,
+        [MarshalAs(UnmanagedType.Bool)] bool fByPosition, ref MENUITEMINFO lpmii);
+
     // -------------------------------------------------------- user32 / gdi32
 
     [StructLayout(LayoutKind.Sequential)]
@@ -291,6 +436,9 @@ internal static partial class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetDesktopWindow();
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

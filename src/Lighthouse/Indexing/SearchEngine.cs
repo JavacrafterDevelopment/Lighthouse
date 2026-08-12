@@ -10,7 +10,7 @@ public enum MatchMode
     StartsWith = 1,
 }
 
-public enum TypeFilter { All = 0, FilesOnly = 1, FoldersOnly = 2 }
+public enum TypeFilter { All = 0, FilesOnly = 1, FoldersOnly = 2, AppsOnly = 3 }
 
 public sealed record SearchOptions(
     MatchMode Mode = MatchMode.Smart,
@@ -225,10 +225,41 @@ public sealed class SearchEngine
         if (!options.IncludeHidden && (f & FileIndex.FlagHidden) != 0) return false;
         if (!options.IncludeSystem && (f & FileIndex.FlagSystem) != 0) return false;
 
-        if (q.Length == 0) return true;
-
         var name = _index.NamePool.AsSpan(_index.NameOffsets[i], _index.NameLengths[i]);
+
+        if (options.Types == TypeFilter.AppsOnly && (isDir || !IsRunnable(name))) return false;
+
+        if (q.Length == 0) return true;
         return Tier(name, q, queryIsAscii, query, options.Mode) >= 0;
+    }
+
+    /// <summary>
+    /// Extensions that count as "an app" for the Apps filter: things you launch
+    /// rather than open in something else. Ordered roughly by how common they are.
+    /// </summary>
+    private static readonly string[] RunnableExtensions =
+        ["exe", "lnk", "url", "msi", "bat", "cmd", "com", "appref-ms", "msc", "cpl", "scr"];
+
+    private static bool IsRunnable(ReadOnlySpan<byte> name)
+    {
+        int dot = name.LastIndexOf((byte)'.');
+        if (dot < 0 || dot == name.Length - 1) return false;
+
+        var ext = name[(dot + 1)..];
+        if (ext.Length > 9) return false;
+
+        foreach (string candidate in RunnableExtensions)
+        {
+            if (candidate.Length != ext.Length) continue;
+
+            bool same = true;
+            for (int k = 0; k < ext.Length; k++)
+            {
+                if (Fold[ext[k]] != candidate[k]) { same = false; break; }
+            }
+            if (same) return true;
+        }
+        return false;
     }
 
     /// <summary>Returns the rank tier for a name, or -1 when it does not match.</summary>

@@ -51,6 +51,7 @@
       </div>
 
       <div class="chips">
+        <button class="chip" data-filter="types" data-value="apps" title="Only things you can run — programs and shortcuts">Apps</button>
         <button class="chip" data-filter="types" data-value="folders" title="Only folders">Folders</button>
         <button class="chip" data-filter="types" data-value="files" title="Only files">Files</button>
         <button class="chip" data-filter="mode" data-value="startsWith" title="Match only names that begin with what you type">Starts with</button>
@@ -90,14 +91,8 @@
 
   </div>
 
-  <div id="menu">
-    <button data-act="open">Open</button>
-    <button data-act="openFolder">Open containing folder</button>
-    <button data-act="reveal">Show in Explorer</button>
-    <hr>
-    <button data-act="copyPath">Copy full path</button>
-    <button data-act="copyName">Copy name</button>
-  </div>
+  <!-- Populated at right-click time from Explorer's own context menu. -->
+  <div id="menu" class="ctxmenu"></div>
 
   <script src="app.js"></script>
 </body>

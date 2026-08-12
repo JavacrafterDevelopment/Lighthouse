@@ -26,6 +26,7 @@ and only covers what your account can read. The status bar says which mode you a
 | **Ctrl+Shift+Space** | Show or hide Lighthouse from anywhere |
 | **Enter** | Open the selected item |
 | **Ctrl+Enter** | Show it in Explorer |
+| **Menu key** / **Shift+F10** | Open the context menu for the selection |
 | **Ctrl+C** | Copy the full path |
 | **Ctrl+L** / **Ctrl+F** | Jump back to the search box |
 | **Esc** | Clear the search, then hide to tray |
@@ -37,8 +38,17 @@ from the tray menu quits for real.
 
 ```
 Lighthouse.exe --query minecraft     Open with a search already typed
+Lighthouse.exe --filter apps         Start with a filter on (apps|files|folders)
 Lighthouse.exe --no-elevate          Skip the admin prompt, use the folder walk
-Lighthouse.exe --icon-selftest       Dump shell icon lookups to %TEMP%\lighthouse-icons
+```
+
+Diagnostics, for when something looks wrong:
+
+```
+Lighthouse.exe --mft-selftest              Scan every NTFS volume and report
+Lighthouse.exe --icon-selftest             Dump icon lookups to %TEMP%\lighthouse-icons
+Lighthouse.exe --menu-selftest "<path>"    Print the shell context menu for a file
+Lighthouse.exe --open-menu                 Open the menu on the first result at startup
 ```
 
 ---
@@ -53,7 +63,20 @@ true prefix matches.
 - Extensions are part of the name, so `minecraft.exe` and `.zip` both work as queries.
 - A backslash searches paths too: `games\mine` matches items named `mine…` sitting
   under a folder path containing `games`.
-- **Folders** and **Files** restrict the result type.
+- **Apps**, **Folders** and **Files** restrict the result type. Apps means anything
+  you launch — `.exe`, `.lnk`, `.msi`, `.bat`, `.cmd`, `.com`, `.url`, `.appref-ms`,
+  `.msc`, `.cpl`, `.scr`.
+
+## Right-clicking
+
+The context menu is Explorer's own, read live from the shell for that exact file,
+then drawn in Lighthouse's styling. Whatever is installed shows up: 7-Zip's
+cascading submenu, "Edit with Notepad++", Open with, Send to, Give access to,
+Properties. Icons that extensions supply come through too.
+
+Hold **Shift** while right-clicking for the extended verbs Explorer hides behind
+the same shortcut. Lighthouse's own **Copy full path**, **Copy name** and **Open
+containing folder** sit at the bottom, below whatever Windows offered.
 
 ---
 
@@ -95,10 +118,19 @@ association rather than guessing. Types whose icon lives inside the file (`.exe`
 `.lnk`, `.ico`) are read per path. Icons are served to the UI over an internal
 origin that the browser caches.
 
+**The context menu.** `ShellContextMenu` asks the shell for the file's real
+`IContextMenu`, populates an off-screen `HMENU` with it, then walks that menu with
+`GetMenuItemInfo` — labels, states, submenus and the bitmaps extensions attach —
+and hands the tree to the UI as plain data. Choosing an entry calls back into
+`IContextMenu::InvokeCommand`, so the command runs exactly as it would from a
+folder window.
+
 **Launching things.** Lighthouse runs elevated, and a child process would inherit
 that. Opening an item therefore goes through `explorer.exe`, which hands off to
 the desktop shell already running at your normal integrity level — so a program
-opened from search results does *not* silently run as administrator.
+opened from search results does *not* silently run as administrator. The context
+menu's plain **Open** is routed the same way, detected by its canonical verb via
+`GetCommandString`, so it behaves identically to a double-click.
 
 ---
 
@@ -124,7 +156,9 @@ src/Lighthouse/
     UsnMonitor.cs         live change-journal updates
     IndexService.cs       orchestration + non-elevated fallback walk
   Shell/
-    IconProvider.cs       HICON → PNG, cached per extension or path
+    IconProvider.cs       shell icons, cached per extension or path
+    ShellContextMenu.cs   reads Explorer's real IContextMenu as data
+    GdiPng.cs             HICON / HBITMAP → PNG, alpha intact
     FileTypeNames.cs      Explorer's Type column text
     ShellLauncher.cs      de-elevated open / reveal
   wwwroot/                the interface (HTML, CSS, JS)
@@ -142,3 +176,9 @@ tools/make-icon.ps1       draws lighthouse.ico
   are indexed with the folder walk instead. This is automatic and per volume.
 - **File sizes and dates** are not stored in the index; they are fetched for the
   rows on screen only, which keeps memory flat regardless of drive size.
+- **Context menu commands run elevated.** Other than plain Open, verbs invoked
+  from the menu execute inside Lighthouse, which is running as administrator —
+  so "Extract Here" produces admin-owned files, for instance. This is inherent to
+  hosting `IContextMenu` in an elevated process; Explorer has the same behaviour
+  when it is itself elevated. Third-party shell extension DLLs are likewise
+  loaded into the elevated process, exactly as Explorer loads them.

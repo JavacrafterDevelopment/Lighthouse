@@ -42,19 +42,35 @@ const state = {
   phase:    'starting',
   lastUs:   0,
   nodes:    new Map(),  // rowIndex -> element
+  lastRefresh: 0,       // throttles re-fetching while a scan is running
 };
 
 /* ------------------------------------------------------------------ query */
 
+/* A new query starts from the top with nothing selected. */
 function runQuery() {
+  state.selected = -1;
+  state.total = 0;
+  el.scroller.scrollTop = 0;
+  invalidateResults();
+}
+
+/* The index keeps growing while a scan runs, so results need re-fetching — but
+   yanking the list back to the top and dropping the selection mid-scroll would be
+   hostile. This refreshes in place instead. */
+function refreshResults() {
+  const top = el.scroller.scrollTop;
+  invalidateResults();
+  el.scroller.scrollTop = top;
+}
+
+function invalidateResults() {
   state.seq++;
   state.pages.clear();
   state.pending.clear();
   state.nodes.clear();
   el.rows.replaceChildren();
-  state.selected = -1;
-  state.total = 0;
-  el.scroller.scrollTop = 0;
+  fetchPage(Math.floor(el.scroller.scrollTop / ROW_H / PAGE));
   fetchPage(0);
 }
 
@@ -77,9 +93,11 @@ function fetchPage(page) {
 
 host.addEventListener('message', (e) => {
   const m = e.data;
-  if (m.evt === 'status')   return onStatus(m);
-  if (m.evt === 'focus')    return focusSearch();
-  if (m.evt === 'setQuery') return setQuery(m.query);
+  if (m.evt === 'status')    return onStatus(m);
+  if (m.evt === 'focus')     return focusSearch();
+  if (m.evt === 'setQuery')  return setQuery(m.query, m.types);
+  if (m.evt === 'shellMenu') return onShellMenu(m);
+  if (m.evt === 'openMenu')  return openMenuWhenReady();
   if (typeof m.seq === 'number') return onResults(m);
 });
 
@@ -261,8 +279,13 @@ function onStatus(m) {
                     : m.phase === 'limited' ? 'limited'
                     : m.phase === 'failed'  ? '' : 'ready';
 
-  // The index grows while scanning, so keep refreshing what is on screen.
-  if (m.phase === 'scanning' || m.phase === 'ready' || m.phase === 'limited') runQuery();
+  // The index grows while scanning, so keep what is on screen current — without
+  // disturbing the selection, the scroll position, or an open context menu.
+  const now = Date.now();
+  if (now - state.lastRefresh > 600) {
+    state.lastRefresh = now;
+    refreshResults();
+  }
   updateEmpty();
 }
 
@@ -367,7 +390,8 @@ el.rows.addEventListener('contextmenu', (e) => {
   const row = e.target.closest('.row');
   if (!row) return;
   select(+row.dataset.i, false);
-  openMenu(e.clientX, e.clientY);
+  // Shift+right-click asks Windows for the extended verb set, same as Explorer.
+  requestMenu(e.clientX, e.clientY, e.shiftKey);
 });
 
 document.addEventListener('keydown', (e) => {
@@ -393,6 +417,10 @@ document.addEventListener('keydown', (e) => {
     const row = selectedRow();
     if (row && document.activeElement !== el.q) { e.preventDefault(); act('copyPath', row); }
   }
+  else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+    e.preventDefault();
+    openMenuForSelection(e.shiftKey && e.key === 'ContextMenu');
+  }
   else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); focusSearch(); }
   else if (e.key === 'f' && e.ctrlKey) { e.preventDefault(); focusSearch(); }
   else if (!e.ctrlKey && !e.altKey && e.key.length === 1 && document.activeElement !== el.q) {
@@ -405,10 +433,18 @@ function focusSearch() {
   el.q.select();
 }
 
-function setQuery(text) {
+function setQuery(text, types) {
   el.q.value = text || '';
   state.query = el.q.value;
   el.clear.classList.toggle('on', state.query.length > 0);
+
+  if (types) {
+    state.types = types;
+    document.querySelectorAll('.chip[data-filter="types"]').forEach((c) => {
+      c.classList.toggle('on', c.dataset.value === types);
+    });
+  }
+
   runQuery();
   focusSearch();
 }
@@ -452,26 +488,174 @@ document.querySelectorAll('.chip').forEach((chip) => {
   });
 });
 
-/* context menu ------------------------------------------------------------ */
+/* context menu ------------------------------------------------------------
+   The entries come from Explorer's own IContextMenu for the file, so whatever
+   is installed — 7-Zip, an editor, a shell extension — appears here exactly as
+   it would in a folder window. We only do the drawing. */
 
-function openMenu(x, y) {
+const menuState = { seq: 0, at: { x: 0, y: 0 }, submenus: [] };
+
+function requestMenu(x, y, extended) {
+  menuState.at = { x, y };
+  const row = selectedRow();
+  if (!row) return;
+
+  // Show immediately with a placeholder; shell extensions can take a beat to load
+  // the first time a file type is used.
+  el.menu.innerHTML = '<div class="empty">Loading…</div>';
+  placeMenu(el.menu, x, y);
   el.menu.classList.add('on');
-  const r = el.menu.getBoundingClientRect();
-  el.menu.style.left = Math.min(x, window.innerWidth  - r.width  - 8) + 'px';
-  el.menu.style.top  = Math.min(y, window.innerHeight - r.height - 8) + 'px';
+
+  host.postMessage({ cmd: 'shellMenu', id: ++menuState.seq, path: row.p, extended: !!extended });
 }
 
-function closeMenu() { el.menu.classList.remove('on'); }
+/* Used by --open-menu, so the context menu can be exercised without needing the
+   window to hold focus. Waits for results before opening. */
+function openMenuWhenReady(tries = 0) {
+  if (state.total === 0 && tries < 60) {
+    setTimeout(() => openMenuWhenReady(tries + 1), 250);
+    return;
+  }
+  select(0, false);
+  setTimeout(() => openMenuForSelection(false), 60);
+}
 
-el.menu.addEventListener('click', (e) => {
-  const btn = e.target.closest('button');
-  if (!btn) return;
-  act(btn.dataset.act, selectedRow());
-  closeMenu();
-});
+/* Keyboard route to the same menu, anchored under the selected row. */
+function openMenuForSelection(extended) {
+  if (state.selected < 0) select(0, true);
+  const node = state.nodes.get(state.selected);
+  if (!node) return;
+  const r = node.getBoundingClientRect();
+  requestMenu(r.left + 56, r.top + r.height - 8, extended);
+}
+
+function onShellMenu(m) {
+  if (m.id !== menuState.seq || !el.menu.classList.contains('on')) return;
+
+  el.menu.replaceChildren();
+  const items = m.items || [];
+
+  if (items.length) {
+    renderMenuInto(el.menu, items);
+    el.menu.appendChild(document.createElement('hr'));
+  }
+
+  // Lighthouse's own additions, below whatever Windows offered.
+  for (const [act, label] of [
+    ['openFolder', 'Open containing folder'],
+    ['copyPath',   'Copy full path'],
+    ['copyName',   'Copy name'],
+  ]) {
+    el.menu.appendChild(buildMenuButton({ label }, () => { act1(act); }));
+  }
+
+  placeMenu(el.menu, menuState.at.x, menuState.at.y);
+}
+
+function act1(action) { act(action, selectedRow()); closeMenu(); }
+
+function renderMenuInto(container, items) {
+  for (const item of items) {
+    if (item.sep) { container.appendChild(document.createElement('hr')); continue; }
+
+    const btn = buildMenuButton(item, item.children
+      ? null
+      : () => { host.postMessage({ cmd: 'shellInvoke', menuId: item.id }); closeMenu(); });
+
+    if (item.children) attachSubmenu(btn, item.children);
+    container.appendChild(btn);
+  }
+}
+
+function buildMenuButton(item, onClick) {
+  const btn = document.createElement('button');
+  if (item.disabled) btn.disabled = true;
+  if (item.default) btn.classList.add('default');
+
+  const left = document.createElement('span');
+  if (item.icon) {
+    const img = document.createElement('img');
+    img.className = 'mi';
+    img.src = item.icon;
+    img.alt = '';
+    left.appendChild(img);
+  } else if (item.checked) {
+    left.className = 'mtick';
+    left.textContent = '✓';
+  }
+
+  const label = document.createElement('span');
+  label.className = 'mlabel';
+  label.textContent = item.label;
+
+  const right = document.createElement('span');
+  right.className = 'marrow';
+  if (item.children) right.textContent = '▶';
+
+  btn.append(left, label, right);
+  if (onClick && !item.disabled) btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function attachSubmenu(btn, children) {
+  let panel = null;
+
+  const open = () => {
+    if (panel) return;
+    panel = document.createElement('div');
+    panel.className = 'ctxmenu on';
+    renderMenuInto(panel, children);
+    document.body.appendChild(panel);
+    menuState.submenus.push(panel);
+
+    const r = btn.getBoundingClientRect();
+    placeMenu(panel, r.right - 4, r.top - 6);
+    btn.classList.add('open');
+  };
+
+  const close = () => {
+    if (!panel) return;
+    panel.remove();
+    menuState.submenus = menuState.submenus.filter((p) => p !== panel);
+    panel = null;
+    btn.classList.remove('open');
+  };
+
+  let timer = 0;
+  btn.addEventListener('mouseenter', () => { clearTimeout(timer); open(); });
+  btn.addEventListener('mouseleave', () => {
+    timer = setTimeout(() => {
+      if (panel && !panel.matches(':hover')) close();
+    }, 260);
+  });
+  btn.addEventListener('click', (e) => { e.stopPropagation(); open(); });
+}
+
+/* Keeps a panel fully on screen, flipping it left or upward near an edge. */
+function placeMenu(panel, x, y) {
+  panel.style.left = '0px';
+  panel.style.top = '0px';
+  const r = panel.getBoundingClientRect();
+
+  let left = x;
+  let top = y;
+  if (left + r.width > window.innerWidth - 8) left = Math.max(8, x - r.width);
+  if (top + r.height > window.innerHeight - 8) top = Math.max(8, window.innerHeight - r.height - 8);
+
+  panel.style.left = left + 'px';
+  panel.style.top = top + 'px';
+}
+
+function closeMenu() {
+  el.menu.classList.remove('on');
+  el.menu.replaceChildren();
+  for (const p of menuState.submenus) p.remove();
+  menuState.submenus = [];
+  host.postMessage({ cmd: 'shellMenuClose' });
+}
 
 document.addEventListener('mousedown', (e) => {
-  if (!e.target.closest('#menu')) closeMenu();
+  if (!e.target.closest('.ctxmenu')) closeMenu();
 });
 
 /* boot -------------------------------------------------------------------- */
@@ -479,3 +663,7 @@ document.addEventListener('mousedown', (e) => {
 el.sizer.style.height = '0px';
 focusSearch();
 runQuery();
+
+// Tell the host the message listener is live, so it can send startup state
+// without racing this script.
+host.postMessage({ cmd: 'ready' });

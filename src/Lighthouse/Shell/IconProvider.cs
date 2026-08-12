@@ -124,7 +124,7 @@ public sealed class IconProvider : IDisposable
 
         try
         {
-            return IconToPng(hIcon);
+            return GdiPng.FromIcon(hIcon);
         }
         finally
         {
@@ -179,113 +179,6 @@ public sealed class IconProvider : IDisposable
         }
 
         return info.iIcon;
-    }
-
-    /// <summary>
-    /// Converts an HICON to PNG. Goes through GetDIBits rather than Icon.ToBitmap so
-    /// the 32-bit alpha channel survives, with a fall back to the 1-bit mask for the
-    /// handful of legacy icons that have no alpha.
-    /// </summary>
-    private static unsafe byte[]? IconToPng(IntPtr hIcon)
-    {
-        if (!GetIconInfo(hIcon, out var ii)) return null;
-
-        try
-        {
-            var bmp = new Native.NativeMethods.BITMAP();
-            if (GetObject(ii.hbmColor, Marshal.SizeOf<Native.NativeMethods.BITMAP>(), ref bmp) == 0) return null;
-
-            int w = bmp.bmWidth, h = bmp.bmHeight;
-            if (w <= 0 || h <= 0 || w > 1024 || h > 1024) return null;
-
-            int stride = w * 4;
-            var pixels = new byte[stride * h];
-
-            IntPtr hdc = GetDC(IntPtr.Zero);
-            try
-            {
-                var bi = new BITMAPINFOHEADER
-                {
-                    biSize = Marshal.SizeOf<BITMAPINFOHEADER>(),
-                    biWidth = w,
-                    biHeight = -h,          // negative => top-down rows
-                    biPlanes = 1,
-                    biBitCount = 32,
-                    biCompression = BI_RGB,
-                };
-
-                fixed (byte* p = pixels)
-                {
-                    if (GetDIBits(hdc, ii.hbmColor, 0, (uint)h, (IntPtr)p, ref bi, DIB_RGB_COLORS) == 0)
-                        return null;
-                }
-
-                bool hasAlpha = false;
-                for (int i = 3; i < pixels.Length; i += 4)
-                {
-                    if (pixels[i] != 0) { hasAlpha = true; break; }
-                }
-
-                if (!hasAlpha && !ApplyMaskAlpha(hdc, ii.hbmMask, pixels, w, h))
-                {
-                    for (int i = 3; i < pixels.Length; i += 4) pixels[i] = 255;
-                }
-            }
-            finally
-            {
-                ReleaseDC(IntPtr.Zero, hdc);
-            }
-
-            using var bitmap = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-            var rect = new Rectangle(0, 0, w, h);
-            var data = bitmap.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-            try
-            {
-                for (int y = 0; y < h; y++)
-                    Marshal.Copy(pixels, y * stride, data.Scan0 + y * data.Stride, stride);
-            }
-            finally
-            {
-                bitmap.UnlockBits(data);
-            }
-
-            using var ms = new MemoryStream(4096);
-            bitmap.Save(ms, ImageFormat.Png);
-            return ms.ToArray();
-        }
-        finally
-        {
-            if (ii.hbmColor != IntPtr.Zero) DeleteObject(ii.hbmColor);
-            if (ii.hbmMask != IntPtr.Zero) DeleteObject(ii.hbmMask);
-        }
-    }
-
-    /// <summary>Legacy icons carry transparency in a 1-bit mask: set bit means transparent.</summary>
-    private static unsafe bool ApplyMaskAlpha(IntPtr hdc, IntPtr hbmMask, byte[] pixels, int w, int h)
-    {
-        if (hbmMask == IntPtr.Zero) return false;
-
-        int stride = w * 4;
-        var mask = new byte[stride * h];
-        var bi = new BITMAPINFOHEADER
-        {
-            biSize = Marshal.SizeOf<BITMAPINFOHEADER>(),
-            biWidth = w,
-            biHeight = -h,
-            biPlanes = 1,
-            biBitCount = 32,
-            biCompression = BI_RGB,
-        };
-
-        fixed (byte* p = mask)
-        {
-            if (GetDIBits(hdc, hbmMask, 0, (uint)h, (IntPtr)p, ref bi, DIB_RGB_COLORS) == 0) return false;
-        }
-
-        for (int i = 0; i < pixels.Length; i += 4)
-            pixels[i + 3] = mask[i] != 0 ? (byte)0 : (byte)255;
-
-        return true;
     }
 
     /// <summary>Neutral parchment-toned document glyph, used when the shell gives us nothing.</summary>

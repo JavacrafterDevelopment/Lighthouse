@@ -402,22 +402,30 @@ body {
 
 /* -------------------------------------------------------- context menu */
 
-#menu {
+/* Explorer's real menu, drawn in Lighthouse's own hand. */
+
+.ctxmenu {
   position: fixed;
   z-index: 50;
-  min-width: 196px;
+  min-width: 210px;
+  max-width: 340px;
   padding: 5px;
   background: var(--card);
   border: 1px solid var(--rule-strong);
   border-radius: 9px;
   box-shadow: 0 8px 30px rgba(74, 53, 36, .18);
   display: none;
+  max-height: 82vh;
+  overflow-y: auto;
 }
 
-#menu.on { display: block; }
+.ctxmenu.on { display: block; }
 
-#menu button {
-  display: block;
+.ctxmenu button {
+  display: grid;
+  grid-template-columns: 18px 1fr 12px;
+  gap: 9px;
+  align-items: center;
   width: 100%;
   text-align: left;
   border: 0;
@@ -425,13 +433,38 @@ body {
   font-family: var(--sans);
   font-size: 13px;
   color: var(--ink);
-  padding: 8px 11px;
+  padding: 7px 10px;
   border-radius: 6px;
   cursor: default;
+  white-space: nowrap;
 }
 
-#menu button:hover { background: var(--walnut-wash); }
-#menu hr { border: 0; border-top: 1px solid var(--rule); margin: 5px 8px; }
+.ctxmenu button:hover:not(:disabled) { background: var(--walnut-wash); }
+.ctxmenu button.open { background: var(--walnut-wash); }
+
+.ctxmenu button:disabled { color: var(--ink-ghost); }
+.ctxmenu button.default { font-weight: 600; color: var(--walnut-deep); }
+
+/* Shell extensions hand us their own 16px bitmaps; keep them crisp and let the
+   ones without an icon share the same left gutter so labels stay aligned. */
+.ctxmenu .mi {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.ctxmenu .mtick { font-size: 11px; color: var(--gilt); text-align: center; }
+.ctxmenu .marrow { font-size: 9px; color: var(--ink-faint); text-align: right; }
+.ctxmenu .mlabel { overflow: hidden; text-overflow: ellipsis; }
+
+.ctxmenu hr { border: 0; border-top: 1px solid var(--rule); margin: 5px 8px; }
+
+.ctxmenu .empty {
+  padding: 8px 11px;
+  font-size: 12px;
+  color: var(--ink-ghost);
+}
 
 /* ------------------------------------------------------------- layout */
 

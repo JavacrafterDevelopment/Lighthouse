@@ -27,7 +27,24 @@ if (-not $SkipIcon) {
 }
 
 Write-Host "  [2/3] Publishing ($Configuration, win-x64, self-contained)"
-if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
+
+# A running copy holds its own exe open, and it may well be elevated and so not
+# ours to kill. Say so plainly rather than failing later with a copy error.
+$exe = Join-Path $dist 'Lighthouse.exe'
+if (Test-Path $exe) {
+    try {
+        $handle = [IO.File]::Open($exe, 'Open', 'ReadWrite', 'None')
+        $handle.Close()
+    }
+    catch {
+        throw "Lighthouse is still running from $dist. Right-click its tray icon and choose Exit, then build again."
+    }
+}
+
+if (Test-Path $dist) {
+    # Leave data\ alone: it holds the WebView2 profile and is not build output.
+    Get-ChildItem $dist -Force | Where-Object { $_.Name -ne 'data' } | Remove-Item -Recurse -Force
+}
 
 # ReadyToRun trades a larger folder for a noticeably faster cold start, which
 # matters for something you summon with a hotkey.
@@ -58,10 +75,13 @@ New-Item -ItemType Directory -Force -Path (Join-Path $dist 'data') | Out-Null
 $readme = Join-Path $root 'README.md'
 if (Test-Path $readme) { Copy-Item $readme (Join-Path $dist 'README.md') -Force }
 
-$size = (Get-ChildItem $dist -Recurse -File | Measure-Object -Property Length -Sum).Sum
+# data\ is the runtime browser profile, not part of the shipped app.
+$shipped = Get-ChildItem $dist -Recurse -File |
+           Where-Object { $_.FullName -notlike (Join-Path $dist 'data\*') }
+$size = ($shipped | Measure-Object -Property Length -Sum).Sum
 Write-Host ''
 Write-Host ('  Done - {0}' -f $dist) -ForegroundColor Green
-Write-Host ('  {0} files, {1:N0} MB' -f (Get-ChildItem $dist -Recurse -File).Count, ($size / 1MB))
+Write-Host ('  {0} files, {1:N0} MB' -f $shipped.Count, ($size / 1MB))
 Write-Host ''
 
 if ($Zip) {

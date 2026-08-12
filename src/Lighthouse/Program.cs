@@ -25,6 +25,19 @@ internal static class Program
             return;
         }
 
+        int menuAt = Array.FindIndex(args, a => a.Equals("--menu-selftest", StringComparison.OrdinalIgnoreCase));
+        if (menuAt >= 0)
+        {
+            string? target = menuAt + 1 < args.Length && !args[menuAt + 1].StartsWith('-')
+                ? args[menuAt + 1]
+                : null;
+            int jsonAt = Array.FindIndex(args, a => a.Equals("--json", StringComparison.OrdinalIgnoreCase));
+            string? jsonOut = jsonAt >= 0 && jsonAt + 1 < args.Length ? args[jsonAt + 1] : null;
+
+            MenuSelfTest.Run(target, args.Contains("--extended", StringComparer.OrdinalIgnoreCase), jsonOut);
+            return;
+        }
+
         // Reading the NTFS master file table requires a raw volume handle, which
         // requires administrator. Ask once; if the user says no we fall back to a
         // (slower) directory walk rather than failing outright.
@@ -34,20 +47,31 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm(InitialQuery(args)));
+        Application.Run(new MainForm(
+            ArgValue(args, "--query", "-q") ?? string.Empty,
+            NormaliseFilter(ArgValue(args, "--filter", "-f")),
+            args.Contains("--open-menu", StringComparer.OrdinalIgnoreCase)));
     }
 
-    /// <summary>`Lighthouse.exe --query minecraft` opens with the search already filled in.</summary>
-    private static string InitialQuery(string[] args)
+    /// <summary>Reads "--name value" from the command line.</summary>
+    private static string? ArgValue(string[] args, string name, string alias)
     {
         for (int i = 0; i < args.Length - 1; i++)
         {
-            if (args[i].Equals("--query", StringComparison.OrdinalIgnoreCase) ||
-                args[i].Equals("-q", StringComparison.OrdinalIgnoreCase))
+            if (args[i].Equals(name, StringComparison.OrdinalIgnoreCase) ||
+                args[i].Equals(alias, StringComparison.OrdinalIgnoreCase))
                 return args[i + 1];
         }
-        return string.Empty;
+        return null;
     }
+
+    private static string NormaliseFilter(string? value) => value?.ToLowerInvariant() switch
+    {
+        "apps" or "app" => "apps",
+        "files" or "file" => "files",
+        "folders" or "folder" or "dirs" => "folders",
+        _ => string.Empty,
+    };
 
     private static bool CheckElevated()
     {

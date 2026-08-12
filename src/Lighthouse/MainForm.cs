@@ -27,6 +27,8 @@ public sealed class MainForm : Form
     private readonly IndexService _service = new();
     private readonly IconProvider _icons = new();
     private readonly NotifyIcon _tray = new();
+    private readonly ShellContextMenu _shellMenu = new();
+    private string _shellMenuPath = string.Empty;
 
     /// <summary>Highest query generation seen; page requests within it are never dropped.</summary>
     private int _latestSeq;
@@ -34,10 +36,14 @@ public sealed class MainForm : Form
     private bool _trayHintShown;
 
     private readonly string _initialQuery;
+    private readonly string _initialFilter;
+    private readonly bool _openMenuOnStart;
 
-    public MainForm(string initialQuery = "")
+    public MainForm(string initialQuery = "", string initialFilter = "", bool openMenuOnStart = false)
     {
         _initialQuery = initialQuery;
+        _initialFilter = initialFilter;
+        _openMenuOnStart = openMenuOnStart;
         Text = "Lighthouse";
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterScreen;
@@ -105,26 +111,32 @@ public sealed class MainForm : Form
 
         _service.StatusChanged += OnIndexStatusChanged;
 
-        if (_initialQuery.Length > 0)
-        {
-            core.NavigationCompleted += (_, _) =>
-            {
-                var sb = new StringBuilder();
-                using (var w = new Utf8JsonWriterScope(sb))
-                {
-                    w.Writer.WriteStartObject();
-                    w.Writer.WriteString("evt", "setQuery");
-                    w.Writer.WriteString("query", _initialQuery);
-                    w.Writer.WriteEndObject();
-                }
-                Post(sb.ToString());
-            };
-        }
-
         core.Navigate($"https://{VirtualHost}/index.html");
 
         _ = _service.StartAsync(Program.IsElevated);
         RegisterHotKey(Handle, HotkeyId, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, (uint)Keys.Space);
+    }
+
+    /// <summary>Pushes anything the command line asked for, once the page can hear it.</summary>
+    private void SendStartupState()
+    {
+        if (_initialQuery.Length > 0 || _initialFilter.Length > 0)
+        {
+            var sb = new StringBuilder();
+            using (var w = new Utf8JsonWriterScope(sb))
+            {
+                w.Writer.WriteStartObject();
+                w.Writer.WriteString("evt", "setQuery");
+                w.Writer.WriteString("query", _initialQuery);
+                if (_initialFilter.Length > 0) w.Writer.WriteString("types", _initialFilter);
+                w.Writer.WriteEndObject();
+            }
+            Post(sb.ToString());
+        }
+
+        if (_openMenuOnStart) Post("{\"evt\":\"openMenu\"}");
+
+        OnIndexStatusChanged(_service.Status);
     }
 
     private void OnIndexStatusChanged(IndexStatus status)
@@ -165,6 +177,12 @@ public sealed class MainForm : Form
 
             switch (cmd)
             {
+                case "ready":
+                    // The page tells us when its listener is live. Sending startup state
+                    // off NavigationCompleted instead races the script and can be lost.
+                    SendStartupState();
+                    break;
+
                 case "search":
                     await HandleSearchAsync(root);
                     break;
@@ -189,6 +207,18 @@ public sealed class MainForm : Form
                     HandleWindowCommand(GetString(root, "action"));
                     break;
 
+                case "shellMenu":
+                    HandleShellMenu(root);
+                    break;
+
+                case "shellInvoke":
+                    HandleShellInvoke(root);
+                    break;
+
+                case "shellMenuClose":
+                    _shellMenu.Release();
+                    break;
+
             }
         }
         catch (Exception ex)
@@ -211,6 +241,7 @@ public sealed class MainForm : Form
             {
                 "files" => TypeFilter.FilesOnly,
                 "folders" => TypeFilter.FoldersOnly,
+                "apps" => TypeFilter.AppsOnly,
                 _ => TypeFilter.All,
             },
             IncludeHidden: !root.TryGetProperty("hidden", out var h) || h.GetBoolean(),
@@ -358,6 +389,84 @@ public sealed class MainForm : Form
         finally
         {
             deferral.Complete();
+        }
+    }
+
+    // ---------------------------------------------------- shell context menu
+
+    /// <summary>
+    /// Builds Explorer's own menu for a path and ships it to the UI as data. Runs on
+    /// the UI thread because shell extensions are apartment threaded; the first open
+    /// for a given file type pays for loading that extension's DLL.
+    /// </summary>
+    private void HandleShellMenu(JsonElement root)
+    {
+        int id = root.TryGetProperty("id", out var idEl) ? idEl.GetInt32() : 0;
+        string path = GetString(root, "path");
+        bool extended = root.TryGetProperty("extended", out var ex) && ex.GetBoolean();
+
+        List<ShellMenuItem> items;
+        try
+        {
+            items = _shellMenu.Build(path, Handle, extended);
+            _shellMenuPath = path;
+        }
+        catch
+        {
+            // A misbehaving shell extension should cost us the menu, not the app.
+            items = [];
+            _shellMenuPath = string.Empty;
+        }
+
+        var sb = new StringBuilder(4096);
+        using (var scope = new Utf8JsonWriterScope(sb))
+        {
+            var w = scope.Writer;
+            w.WriteStartObject();
+            w.WriteString("evt", "shellMenu");
+            w.WriteNumber("id", id);
+            w.WriteString("path", path);
+            w.WriteStartArray("items");
+            ShellMenuJson.Write(w, items);
+            w.WriteEndArray();
+            w.WriteEndObject();
+        }
+        Post(sb.ToString());
+    }
+
+    private void HandleShellInvoke(JsonElement root)
+    {
+        int id = root.TryGetProperty("menuId", out var el) ? el.GetInt32() : -1;
+        if (id < 0) return;
+
+        // Plain "Open" goes through the same de-elevated route as double-clicking.
+        // Invoking it here would run the target with Lighthouse's admin token, which
+        // is not what someone expects from opening a file out of a search result.
+        if (Program.IsElevated
+            && string.Equals(_shellMenu.GetVerb(id), "open", StringComparison.OrdinalIgnoreCase)
+            && _shellMenuPath.Length > 0)
+        {
+            string target = _shellMenuPath;
+            _shellMenu.Release();
+            ShellLauncher.Open(target);
+            return;
+        }
+
+        string directory = string.Empty;
+        try { directory = Path.GetDirectoryName(_shellMenuPath) ?? string.Empty; } catch { }
+
+        try
+        {
+            _shellMenu.Invoke(id, Handle, directory);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"That command could not be run.\n\n{ex.Message}",
+                "Lighthouse", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            _shellMenu.Release();
         }
     }
 
@@ -510,6 +619,7 @@ public sealed class MainForm : Form
         _tray.Dispose();
         _service.Dispose();
         _icons.Dispose();
+        _shellMenu.Dispose();
     }
 }
 

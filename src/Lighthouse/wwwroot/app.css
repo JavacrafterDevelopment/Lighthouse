@@ -55,38 +55,53 @@ body {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.035'/></svg>");
 }
 
-/* ------------------------------------------------------------- title bar */
+/* -------------------------------------------------------------- masthead */
 
-#titlebar {
-  height: 44px;
-  display: flex;
-  align-items: center;
-  padding-left: 16px;
-  border-bottom: 1px solid var(--rule);
-  background: linear-gradient(180deg, #F7F2E8 0%, var(--paper) 100%);
+#top {
+  position: relative;
   flex: 0 0 auto;
-}
-
-#brand {
   display: flex;
-  align-items: baseline;
-  gap: 9px;
-  flex: 1;
-  height: 100%;
   align-items: center;
+  gap: 16px;
+  padding: 13px 16px 15px 18px;
+  border-bottom: 1px solid var(--rule);
+  background: linear-gradient(180deg, #F8F3EA 0%, var(--paper) 100%);
 }
 
-#brand svg { flex: 0 0 auto; }
+#lamp-mark { flex: 0 0 auto; }
+
+#brandcol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Leaves the window buttons their corner. */
+#brandrow {
+  padding-right: 150px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 24px;
+}
+
+#searchrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
 /* The light turns. Kept slow and low-contrast so it reads as atmosphere from the
    corner of your eye rather than something demanding attention. */
 #lamp-mark .beam {
-  transform-origin: 12px 7.4px;
+  transform-origin: 32px 20px;   /* the lamp, in viewBox units */
   animation: lh-sweep 7s linear infinite, lh-beam 7s ease-in-out infinite;
 }
 
 #lamp-mark .glow {
-  transform-origin: 12px 7.4px;
+  transform-origin: 32px 20px;
   animation: lh-glow 7s ease-in-out infinite;
 }
 
@@ -105,10 +120,10 @@ body {
 /* Dim through the half-turn where the beam would be pointing away from us and
    down into the ground. */
 @keyframes lh-glow {
-  0%,  100% { opacity: .22; transform: scale(1); }
-  22%       { opacity: .05; transform: scale(.82); }
-  50%       { opacity: .22; transform: scale(1); }
-  72%       { opacity: .10; transform: scale(.88); }
+  0%,  100% { opacity: 1;   transform: scale(1); }
+  22%       { opacity: .25; transform: scale(.82); }
+  50%       { opacity: 1;   transform: scale(1); }
+  72%       { opacity: .5;  transform: scale(.88); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -118,14 +133,21 @@ body {
 
 #wordmark {
   font-family: var(--serif);
-  font-size: 16px;
-  letter-spacing: .04em;
+  font-size: 21px;
+  letter-spacing: .05em;
   color: var(--walnut-deep);
+  line-height: 1;
 }
 
 #wordmark .beam { color: var(--gilt); }
 
-#winbtns { display: flex; height: 100%; }
+#winbtns {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  height: 38px;
+}
 
 .winbtn {
   width: 46px;
@@ -144,16 +166,9 @@ body {
 
 /* ----------------------------------------------------------- search bar */
 
-#searchbar {
-  padding: 14px 16px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
-}
-
 #searchwrap {
   flex: 1;
+  min-width: 170px;   /* the chips must not squeeze this to nothing when narrow */
   position: relative;
   display: flex;
   align-items: center;

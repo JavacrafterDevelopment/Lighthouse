@@ -480,14 +480,17 @@ function setQuery(text, types, tidy) {
 
 /* window chrome ---------------------------------------------------------- */
 
-document.getElementById('titlebar').addEventListener('mousedown', (e) => {
-  if (e.target.closest('.winbtn')) return;
-  if (e.button !== 0) return;
+/* The whole masthead is draggable except the controls sitting on it. */
+const topBar = document.getElementById('top');
+const onChrome = (e) => !e.target.closest('button, input, #searchwrap, .chips');
+
+topBar.addEventListener('mousedown', (e) => {
+  if (e.button !== 0 || !onChrome(e)) return;
   host.postMessage({ cmd: 'window', action: 'drag' });
 });
 
-document.getElementById('titlebar').addEventListener('dblclick', (e) => {
-  if (e.target.closest('.winbtn')) return;
+topBar.addEventListener('dblclick', (e) => {
+  if (!onChrome(e)) return;
   host.postMessage({ cmd: 'window', action: 'maximize' });
 });
 

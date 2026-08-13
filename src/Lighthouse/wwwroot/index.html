@@ -8,32 +8,71 @@
 <body>
   <div id="app">
 
-    <div id="titlebar">
-      <div id="brand">
-        <!-- The beam sweeps a full turn; it dims as it passes behind the tower and
-             down through the ground, which reads as rotation without any 3-D work. -->
-        <svg id="lamp-mark" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="beamFade" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0"   stop-color="#A8843F" stop-opacity=".55"/>
-              <stop offset="1"   stop-color="#A8843F" stop-opacity="0"/>
-            </linearGradient>
-          </defs>
+    <!-- One masthead: the lamp stands full height on the left, wordmark and search
+         stacked beside it, window buttons pinned to the corner. Same controls as
+         before, just given room so the beam is actually legible. -->
+    <header id="top">
+      <svg id="lamp-mark" width="62" height="62" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="beamFade" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0"   stop-color="#A8843F" stop-opacity=".50"/>
+            <stop offset=".55" stop-color="#A8843F" stop-opacity=".16"/>
+            <stop offset="1"   stop-color="#A8843F" stop-opacity="0"/>
+          </linearGradient>
+          <radialGradient id="lampGlow">
+            <stop offset="0" stop-color="#C79A4A" stop-opacity=".5"/>
+            <stop offset="1" stop-color="#C79A4A" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
 
-          <g class="beam">
-            <path d="M12 7.4 L24 2.6 L24 12.2 Z" fill="url(#beamFade)"/>
-          </g>
+        <!-- Drawn before the tower so the tower occludes it as it swings past. -->
+        <g class="beam">
+          <path d="M32 20 L64 8 L64 32 Z" fill="url(#beamFade)"/>
+        </g>
+        <circle class="glow" cx="32" cy="20" r="12" fill="url(#lampGlow)"/>
 
-          <circle class="glow" cx="12" cy="7.4" r="3.4" fill="#A8843F" opacity=".2"/>
+        <rect x="16" y="54" width="32" height="5" rx="2" fill="#4A3524"/>
+        <path d="M26 27 h12 l4 27 H22 z" fill="#6B4F35"/>
+        <path d="M25 34 h14 M24 42.5 h16" stroke="#F4EEE2" stroke-width="3.4"/>
+        <path d="M30 54 v-5.4 a2 2 0 0 1 4 0 V54 z" fill="#4A3524"/>
 
-          <path d="M9.4 10.2h5.2l1.9 10.4H7.5L9.4 10.2z" fill="#6B4F35"/>
-          <path d="M9.6 13.4h4.8M9.2 16.8h5.6" stroke="#F4EEE2" stroke-width="1.15"/>
-          <rect x="8.7" y="7.7" width="6.6" height="2.6" rx=".6" fill="#4A3524"/>
-          <path d="M8.4 7.7 L15.6 7.7 L12 4.3 Z" fill="#4A3524"/>
-          <circle cx="12" cy="6.6" r="1.35" fill="#A8843F"/>
-          <path d="M5.8 20.8h12.4" stroke="#4A3524" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        <span id="wordmark">Light<span class="beam">house</span></span>
+        <rect x="20.5" y="24.2" width="23" height="3.2" rx="1.3" fill="#4A3524"/>
+        <rect x="25" y="14" width="14" height="10.4" fill="#4A3524"/>
+        <circle cx="32" cy="19.6" r="3.7" fill="#C79A4A"/>
+        <path d="M22.6 14 h18.8 L32 5.6 z" fill="#4A3524"/>
+        <circle cx="32" cy="4" r="1.5" fill="#4A3524"/>
+      </svg>
+
+      <div id="brandcol">
+        <div id="brandrow">
+          <span id="wordmark">Light<span class="beam">house</span></span>
+        </div>
+
+        <div id="searchrow">
+          <div id="searchwrap">
+            <span class="glass">
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                <circle cx="6.4" cy="6.4" r="4.6" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M9.9 9.9l3.4 3.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <input id="q" type="text" spellcheck="false" autocomplete="off"
+                   placeholder="Search every file and folder…" autofocus>
+            <button id="clear" title="Clear">
+              <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+
+          <div class="chips">
+            <button class="chip" data-filter="tidy" data-value="on"
+                    title="Hide the machinery — system files, build output, package caches and the folders they live in">Tidy</button>
+            <span class="chip-sep"></span>
+            <button class="chip" data-filter="types" data-value="apps" title="Only things you can run — programs and shortcuts">Apps</button>
+            <button class="chip" data-filter="types" data-value="folders" title="Only folders">Folders</button>
+            <button class="chip" data-filter="types" data-value="files" title="Only files">Files</button>
+            <button class="chip" data-filter="mode" data-value="startsWith" title="Match only names that begin with what you type">Starts with</button>
+          </div>
+        </div>
       </div>
 
       <div id="winbtns">
@@ -47,33 +86,7 @@
           <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.4 1.4l7.2 7.2M8.6 1.4L1.4 8.6" stroke="currentColor" stroke-width="1.2"/></svg>
         </button>
       </div>
-    </div>
-
-    <div id="searchbar">
-      <div id="searchwrap">
-        <span class="glass">
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-            <circle cx="6.4" cy="6.4" r="4.6" stroke="currentColor" stroke-width="1.4"/>
-            <path d="M9.9 9.9l3.4 3.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <input id="q" type="text" spellcheck="false" autocomplete="off"
-               placeholder="Search every file and folder…" autofocus>
-        <button id="clear" title="Clear">
-          <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-        </button>
-      </div>
-
-      <div class="chips">
-        <button class="chip" data-filter="tidy" data-value="on"
-                title="Hide the machinery — system files, build output, package caches and the folders they live in">Tidy</button>
-        <span class="chip-sep"></span>
-        <button class="chip" data-filter="types" data-value="apps" title="Only things you can run — programs and shortcuts">Apps</button>
-        <button class="chip" data-filter="types" data-value="folders" title="Only folders">Folders</button>
-        <button class="chip" data-filter="types" data-value="files" title="Only files">Files</button>
-        <button class="chip" data-filter="mode" data-value="startsWith" title="Match only names that begin with what you type">Starts with</button>
-      </div>
-    </div>
+    </header>
 
     <div id="columns">
       <span>Name</span>

@@ -39,16 +39,29 @@ the close button quit outright.
 
 ## Settings
 
-The gear beside the wordmark, or **Ctrl+,**.
+**Settings** at the bottom of the window, beside Re-index, or **Ctrl+,**.
 
 - **Keep running when closed** — on by default. The window hides to the tray so the
   index (and the seconds spent building it) survives and Ctrl+Shift+Space stays
   instant. Off means the close button quits Lighthouse.
 - **Dark mode** — the same walnut and gilt, lit low. Applies immediately.
+- **Drives to index** — every fixed and removable drive, with its label, format and
+  size. Switching one off drops it from the index and starts a re-scan; switching it
+  back on brings it back the same way. Stored as exclusions, so a drive plugged in
+  later is indexed by default rather than silently ignored.
 
-Both are kept in `data\settings.json` beside the executable, so they travel with
+All of it lives in `data\settings.json` beside the executable, so it travels with
 the folder like everything else. The theme is stamped onto the page before any
 script runs, so a dark install never flashes light on the way in.
+
+## Resizing
+
+Drag any edge or corner. The window is borderless, and WebView2 covers the whole
+client area, so the form itself never sees a hit test near the border — the page
+carries invisible grips there instead and hands the grab back to the window
+manager, which then resizes exactly as a normal window would. Corners have a
+larger target than edges, and the bottom-right one shows a faint hatch so it is
+discoverable.
 
 ### Command line
 

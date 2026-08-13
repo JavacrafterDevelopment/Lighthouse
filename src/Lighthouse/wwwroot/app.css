@@ -215,26 +215,6 @@ body {
 
 #wordmark .beam { color: var(--gilt); }
 
-#gear {
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--ink-ghost);
-  width: 26px;
-  height: 24px;
-  border-radius: 7px;
-  display: grid;
-  place-items: center;
-  cursor: default;
-  transition: background .12s ease, color .12s ease, border-color .12s ease, transform .35s ease;
-}
-
-#gear:hover {
-  background: var(--card);
-  border-color: var(--rule-strong);
-  color: var(--walnut-deep);
-  transform: rotate(45deg);
-}
-
 #winbtns {
   position: absolute;
   top: 0;
@@ -518,9 +498,8 @@ body {
 #status .sep { color: var(--rule-strong); }
 #status .grow { flex: 1; }
 
-/* Only offered once a scan has finished — re-indexing mid-scan makes no sense. */
-#reindex {
-  display: none;
+.statusbtn {
+  display: inline-flex;
   align-items: center;
   gap: 5px;
   border: 1px solid transparent;
@@ -534,16 +513,24 @@ body {
   transition: background .12s ease, color .12s ease, border-color .12s ease;
 }
 
-#reindex.on { display: inline-flex; }
-
-#reindex:hover {
+.statusbtn:hover {
   background: var(--card);
   border-color: var(--rule-strong);
   color: var(--walnut-deep);
 }
 
-#reindex:active { background: var(--walnut-wash); }
-#reindex svg { flex: 0 0 auto; }
+.statusbtn:active { background: var(--walnut-wash); }
+.statusbtn svg { flex: 0 0 auto; transition: transform .35s ease; }
+
+/* Chromium leaves a focus ring on a clicked button; keep it for the keyboard only. */
+.statusbtn:focus { outline: none; }
+.statusbtn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+
+#gear:hover svg { transform: rotate(45deg); }
+
+/* Only offered once a scan has finished — re-indexing mid-scan makes no sense. */
+#reindex { display: none; }
+#reindex.on { display: inline-flex; }
 #status b { font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
 #lamp {
@@ -786,4 +773,72 @@ body {
 .switch:focus-visible {
   outline: 0;
   box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Drive list inside settings ------------------------------------------------ */
+
+.set-block { padding-bottom: 6px; border-bottom: 0; }
+
+.drive-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.drive-row:last-child { border-bottom: 0; }
+
+.drive-face { flex: 1; display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+
+.drive-letter {
+  font-family: var(--serif);
+  font-size: 16px;
+  color: var(--walnut-deep);
+  flex: 0 0 auto;
+  min-width: 26px;
+}
+
+.drive-meta {
+  font-size: 12px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drive-row .switch { margin-top: 0; }
+
+.drive-empty { padding: 10px 0; font-size: 12px; color: var(--ink-ghost); }
+
+/* Resize grips -------------------------------------------------------------- */
+
+.grips { position: fixed; inset: 0; pointer-events: none; z-index: 90; }
+
+.grip { position: absolute; pointer-events: auto; }
+
+.grip.n { top: 0; left: 14px; right: 14px; height: 5px; cursor: ns-resize; }
+.grip.s { bottom: 0; left: 14px; right: 14px; height: 5px; cursor: ns-resize; }
+.grip.w { left: 0; top: 14px; bottom: 14px; width: 5px; cursor: ew-resize; }
+.grip.e { right: 0; top: 14px; bottom: 14px; width: 5px; cursor: ew-resize; }
+
+/* Corners are deliberately larger — they are the ones people reach for. */
+.grip.nw, .grip.ne, .grip.sw, .grip.se { width: 16px; height: 16px; }
+.grip.nw { top: 0; left: 0; cursor: nwse-resize; }
+.grip.se { bottom: 0; right: 0; cursor: nwse-resize; }
+.grip.ne { top: 0; right: 0; cursor: nesw-resize; }
+.grip.sw { bottom: 0; left: 0; cursor: nesw-resize; }
+
+/* A faint hatch in the bottom-right corner, so the grip is discoverable. */
+.grip.se::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 9px;
+  height: 9px;
+  opacity: .5;
+  background:
+    linear-gradient(135deg, transparent 45%, var(--ink-ghost) 45%, var(--ink-ghost) 58%, transparent 58%),
+    linear-gradient(135deg, transparent 72%, var(--ink-ghost) 72%, var(--ink-ghost) 85%, transparent 85%);
 }

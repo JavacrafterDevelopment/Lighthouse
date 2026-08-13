@@ -32,6 +32,7 @@ const el = {
   setClose:   document.getElementById('set-close'),
   setTray:    document.getElementById('set-tray'),
   setDark:    document.getElementById('set-dark'),
+  drives:     document.getElementById('drives'),
 };
 
 const state = {
@@ -717,9 +718,58 @@ function applySettings(s) {
   el.setTray.checked = !!s.closeToTray;
   el.setDark.checked = s.theme === 'dark';
   document.documentElement.dataset.theme = s.theme === 'dark' ? 'dark' : 'light';
+  renderDrives(s.drives || []);
 
   const close = document.querySelector('.winbtn.close');
   if (close) close.title = s.closeToTray ? 'Close to tray' : 'Close';
+}
+
+/* The host supplies the drives it can see; we only decide which are switched on. */
+function renderDrives(drives) {
+  el.drives.replaceChildren();
+
+  if (!drives.length) {
+    const none = document.createElement('div');
+    none.className = 'drive-empty';
+    none.textContent = 'No fixed or removable drives were found.';
+    el.drives.appendChild(none);
+    return;
+  }
+
+  for (const d of drives) {
+    const row = document.createElement('div');
+    row.className = 'drive-row';
+
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'switch';
+    box.id = 'drive-' + d.letter;
+    box.checked = d.on !== false;
+    box.addEventListener('change', pushSettings);
+
+    const face = document.createElement('label');
+    face.className = 'drive-face';
+    face.htmlFor = box.id;
+
+    const letter = document.createElement('span');
+    letter.className = 'drive-letter';
+    letter.textContent = d.letter + ':';
+
+    const meta = document.createElement('span');
+    meta.className = 'drive-meta';
+    meta.textContent = [d.label, d.format, d.sizeGb ? d.sizeGb.toLocaleString() + ' GB' : '']
+      .filter(Boolean).join(' · ');
+
+    face.append(letter, meta);
+    row.append(face, box);
+    el.drives.appendChild(row);
+  }
+}
+
+function excludedDrives() {
+  return [...el.drives.querySelectorAll('input.switch')]
+    .filter((b) => !b.checked)
+    .map((b) => b.id.replace('drive-', ''));
 }
 
 function pushSettings() {
@@ -729,7 +779,12 @@ function pushSettings() {
   const close = document.querySelector('.winbtn.close');
   if (close) close.title = el.setTray.checked ? 'Close to tray' : 'Close';
 
-  host.postMessage({ cmd: 'saveSettings', closeToTray: el.setTray.checked, theme });
+  host.postMessage({
+    cmd: 'saveSettings',
+    closeToTray: el.setTray.checked,
+    theme,
+    excludedDrives: excludedDrives(),
+  });
 }
 
 function openSettings() {
@@ -750,6 +805,18 @@ el.setDark.addEventListener('change', pushSettings);
 // Clicking the dimmed surround closes; clicking the panel itself must not.
 el.setwrap.addEventListener('mousedown', (e) => {
   if (e.target === el.setwrap) closeSettings();
+});
+
+/* window resizing ---------------------------------------------------------
+   The grips are the only thing over the browser surface at the window border;
+   the host turns the grab into a real window-manager resize. */
+
+document.querySelectorAll('.grip').forEach((grip) => {
+  grip.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    host.postMessage({ cmd: 'resize', dir: grip.dataset.dir });
+  });
 });
 
 /* boot -------------------------------------------------------------------- */

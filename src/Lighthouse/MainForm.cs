@@ -65,6 +65,7 @@ public sealed class MainForm : Form
         try { Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { /* no icon embedded */ }
 
         Controls.Add(_web);
+        _service.ExcludedDrives = _settings.ExcludedDrives;
         SetupTray();
 
         Load += OnLoad;
@@ -140,7 +141,29 @@ public sealed class MainForm : Form
         if (root.TryGetProperty("theme", out var theme) && theme.ValueKind == JsonValueKind.String)
             _settings.Theme = theme.GetString() == "dark" ? "dark" : "light";
 
+        bool drivesChanged = false;
+        if (root.TryGetProperty("excludedDrives", out var excluded) && excluded.ValueKind == JsonValueKind.Array)
+        {
+            var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var d in excluded.EnumerateArray())
+            {
+                if (d.ValueKind == JsonValueKind.String && d.GetString() is { Length: > 0 } letter)
+                    wanted.Add(letter.ToUpperInvariant());
+            }
+
+            if (!wanted.SetEquals(_settings.ExcludedDrives))
+            {
+                _settings.ExcludedDrives.Clear();
+                foreach (string letter in wanted) _settings.ExcludedDrives.Add(letter);
+                drivesChanged = true;
+            }
+        }
+
         _settings.Save();
+
+        // The index is built from the selected drives, so changing them means
+        // rebuilding it — there is nothing useful to show in between.
+        if (drivesChanged) _ = _service.RebuildAsync(Program.IsElevated);
 
         BackColor = ColorTranslator.FromHtml(_settings.IsDark ? "#191512" : "#F3EDE1");
         _tray.Text = _settings.CloseToTray
@@ -157,9 +180,46 @@ public sealed class MainForm : Form
             w.Writer.WriteString("evt", "settings");
             w.Writer.WriteBoolean("closeToTray", _settings.CloseToTray);
             w.Writer.WriteString("theme", _settings.IsDark ? "dark" : "light");
+
+            w.Writer.WriteStartArray("drives");
+            foreach (var drive in IndexService.ListDrives())
+            {
+                string letter = drive.Name[..1].ToUpperInvariant();
+                w.Writer.WriteStartObject();
+                w.Writer.WriteString("letter", letter);
+                w.Writer.WriteString("label", SafeLabel(drive));
+                w.Writer.WriteString("format", SafeFormat(drive));
+                w.Writer.WriteNumber("sizeGb", SafeSizeGb(drive));
+                w.Writer.WriteBoolean("on", !_settings.ExcludedDrives.Contains(letter));
+                w.Writer.WriteEndObject();
+            }
+            w.Writer.WriteEndArray();
+
             w.Writer.WriteEndObject();
         }
         Post(sb.ToString());
+    }
+
+    // A drive can be pulled out between listing it and asking about it, so every
+    // property read has to tolerate failing.
+    private static string SafeLabel(DriveInfo d)
+    {
+        try
+        {
+            string label = d.VolumeLabel;
+            return string.IsNullOrWhiteSpace(label) ? "Local disk" : label;
+        }
+        catch { return "Local disk"; }
+    }
+
+    private static string SafeFormat(DriveInfo d)
+    {
+        try { return d.DriveFormat; } catch { return "?"; }
+    }
+
+    private static long SafeSizeGb(DriveInfo d)
+    {
+        try { return d.TotalSize / (1024L * 1024 * 1024); } catch { return 0; }
     }
 
     /// <summary>Pushes anything the command line asked for, once the page can hear it.</summary>
@@ -254,6 +314,10 @@ public sealed class MainForm : Form
 
                 case "window":
                     HandleWindowCommand(GetString(root, "action"));
+                    break;
+
+                case "resize":
+                    StartResize(GetString(root, "dir"));
                     break;
 
                 case "shellMenu":
@@ -601,6 +665,32 @@ public sealed class MainForm : Form
         }
     }
 
+    /// <summary>
+    /// Starts a resize from an edge or corner. WebView2 covers the whole client
+    /// area, so the form never sees a hit test near the border; the page puts
+    /// invisible grips there instead and tells us which one was grabbed.
+    /// </summary>
+    private void StartResize(string direction)
+    {
+        int hit = direction switch
+        {
+            "n" => HTTOP,
+            "s" => HTBOTTOM,
+            "w" => HTLEFT,
+            "e" => HTRIGHT,
+            "nw" => HTTOPLEFT,
+            "ne" => HTTOPRIGHT,
+            "sw" => HTBOTTOMLEFT,
+            "se" => HTBOTTOMRIGHT,
+            _ => 0,
+        };
+        if (hit == 0) return;
+
+        if (WindowState == FormWindowState.Maximized) WindowState = FormWindowState.Normal;
+        ReleaseCapture();
+        SendMessage(Handle, WM_NCLBUTTONDOWN, (IntPtr)hit, IntPtr.Zero);
+    }
+
     private void ApplyRoundedCorners()
     {
         try
@@ -613,7 +703,10 @@ public sealed class MainForm : Form
 
     protected override void WndProc(ref Message m)
     {
-        // Borderless: synthesise resize handles around the edges.
+        // Borderless: synthesise resize handles around the edges. In practice
+        // WebView2 covers the client area and swallows these, which is why the page
+        // also carries grips that call StartResize; this remains as the fallback for
+        // any strip of form the browser is not painting over.
         if (m.Msg == WM_NCHITTEST && WindowState == FormWindowState.Normal)
         {
             base.WndProc(ref m);

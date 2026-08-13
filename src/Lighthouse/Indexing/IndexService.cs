@@ -37,7 +37,13 @@ public sealed class IndexService : IDisposable
 
     public event Action<IndexStatus>? StatusChanged;
 
+    /// <summary>Drive letters ("C") the user has switched off in settings.</summary>
+    public ISet<string> ExcludedDrives { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
     public IndexService() => Search = new SearchEngine(Index);
+
+    /// <summary>Everything Lighthouse could index, whether or not it currently does.</summary>
+    public static List<DriveInfo> ListDrives() => GetAllVolumes();
 
     /// <summary>True while a scan is running, so the UI can hide the re-index button.</summary>
     public bool IsBusy => Volatile.Read(ref _rebuilding) != 0;
@@ -166,7 +172,7 @@ public sealed class IndexService : IDisposable
         _monitorCts = new CancellationTokenSource();
     }
 
-    private static List<DriveInfo> GetCandidateVolumes()
+    private static List<DriveInfo> GetAllVolumes()
     {
         var list = new List<DriveInfo>();
         foreach (var d in DriveInfo.GetDrives())
@@ -184,6 +190,9 @@ public sealed class IndexService : IDisposable
         }
         return list;
     }
+
+    private List<DriveInfo> GetCandidateVolumes() =>
+        GetAllVolumes().FindAll(d => !ExcludedDrives.Contains(d.Name[..1]));
 
     /// <summary>
     /// Fallback used when we cannot read the MFT (no elevation, or a non-NTFS volume).

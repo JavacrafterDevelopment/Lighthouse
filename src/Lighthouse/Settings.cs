@@ -17,6 +17,13 @@ public sealed class Settings
     /// <summary>"light" or "dark".</summary>
     public string Theme { get; set; } = "light";
 
+    /// <summary>
+    /// Drive letters to leave out of the index. Stored as exclusions rather than a
+    /// list of what to include, so a drive plugged in later is indexed by default
+    /// instead of silently ignored.
+    /// </summary>
+    public HashSet<string> ExcludedDrives { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public bool IsDark => Theme.Equals("dark", StringComparison.OrdinalIgnoreCase);
 
     private static string FilePath =>
@@ -41,6 +48,16 @@ public sealed class Settings
                 string value = theme.GetString() ?? "light";
                 settings.Theme = value.Equals("dark", StringComparison.OrdinalIgnoreCase) ? "dark" : "light";
             }
+
+            if (root.TryGetProperty("excludedDrives", out var drives) && drives.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var d in drives.EnumerateArray())
+                {
+                    string? letter = d.ValueKind == JsonValueKind.String ? d.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(letter))
+                        settings.ExcludedDrives.Add(letter.TrimEnd(':', '\\').ToUpperInvariant());
+                }
+            }
         }
         catch
         {
@@ -61,6 +78,9 @@ public sealed class Settings
                 w.WriteStartObject();
                 w.WriteBoolean("closeToTray", CloseToTray);
                 w.WriteString("theme", IsDark ? "dark" : "light");
+                w.WriteStartArray("excludedDrives");
+                foreach (string letter in ExcludedDrives.OrderBy(x => x)) w.WriteStringValue(letter);
+                w.WriteEndArray();
                 w.WriteEndObject();
             }
 

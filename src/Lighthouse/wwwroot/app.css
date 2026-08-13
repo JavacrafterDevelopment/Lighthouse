@@ -28,12 +28,82 @@
   --sel-edge:     #7A5B3A;
 
   --danger:       #8C3A2B;
+  --ok:           #6E8C4A;
+
+  /* Text that sits on a walnut/gilt fill. */
+  --on-accent:    #FBF5E9;
+
+  --header-top:   #F8F3EA;
+  --status-btm:   #EFE8DA;
+  --row-line:     rgba(227, 216, 195, .55);
+  --focus-ring:   rgba(168, 132, 63, .18);
+  --shadow-drop:  rgba(74, 53, 36, .18);
+
+  /* The lamp mark, so it reads on either ground. */
+  --lh-structure: #4A3524;
+  --lh-tower:     #6B4F35;
+  --lh-band:      #F4EEE2;
+  --lh-lamp:      #C79A4A;
 
   --serif: Georgia, "Palatino Linotype", "Book Antiqua", "Iowan Old Style", serif;
   --sans:  "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 
   --row-h: 54px;
   --shadow-soft: 0 1px 2px rgba(74, 53, 36, .06), 0 6px 20px rgba(74, 53, 36, .07);
+
+  /* Faint paper grain: a tiny SVG turbulence tile, kept very low contrast so it
+     reads as texture rather than noise. Dark ink on light paper here. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.035'/></svg>");
+}
+
+/* ---------------------------------------------------------------------------
+   Night. Not a grey inversion — the same walnut and gilt, lit low, so the room
+   changes but the furniture does not.
+   ------------------------------------------------------------------------- */
+:root[data-theme="dark"] {
+  --paper:        #191512;
+  --paper-deep:   #12100D;
+  --card:         #221D18;
+  --card-hover:   #2B241D;
+
+  --rule:         #2F281F;
+  --rule-strong:  #453A2D;
+
+  --ink:          #EFE7D8;
+  --ink-soft:     #C9BAA3;
+  --ink-faint:    #9C8C77;
+  --ink-ghost:    #7A6C5A;
+
+  --walnut:       #C7A16A;
+  --walnut-deep:  #E6D2AB;
+  --walnut-wash:  #332A1F;
+
+  --gilt:         #D9B26A;
+  --gilt-wash:    #4A3A1E;
+
+  --sel:          #3A3024;
+  --sel-edge:     #C7A16A;
+
+  --danger:       #B4503C;
+  --ok:           #8FAE63;
+
+  --on-accent:    #1B1610;
+
+  --header-top:   #221D18;
+  --status-btm:   #12100D;
+  --row-line:     rgba(69, 58, 45, .5);
+  --focus-ring:   rgba(217, 178, 106, .22);
+  --shadow-drop:  rgba(0, 0, 0, .55);
+
+  --lh-structure: #E2D4BC;
+  --lh-tower:     #BFA88A;
+  --lh-band:      #241F19;
+  --lh-lamp:      #F2D08A;
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, .35), 0 6px 20px rgba(0, 0, 0, .38);
+
+  /* Same tile, inverted: light flecks, or the grain would vanish into the dark. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/><feColorMatrix type='matrix' values='-1 0 0 0 1  0 -1 0 0 1  0 0 -1 0 1  0 0 0 1 0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.045'/></svg>");
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -50,9 +120,7 @@ body {
   background: var(--paper);
   user-select: none;
   -webkit-user-select: none;
-  /* Faint paper grain: a tiny SVG turbulence tile, kept very low contrast so it
-     reads as texture rather than noise. */
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.035'/></svg>");
+  background-image: var(--grain);
 }
 
 /* -------------------------------------------------------------- masthead */
@@ -65,10 +133,16 @@ body {
   gap: 16px;
   padding: 13px 16px 15px 18px;
   border-bottom: 1px solid var(--rule);
-  background: linear-gradient(180deg, #F8F3EA 0%, var(--paper) 100%);
+  background: linear-gradient(180deg, var(--header-top) 0%, var(--paper) 100%);
 }
 
 #lamp-mark { flex: 0 0 auto; }
+
+/* Painted from tokens so the mark stays legible when the room goes dark. */
+#lamp-mark .structure { fill: var(--lh-structure); }
+#lamp-mark .tower     { fill: var(--lh-tower); }
+#lamp-mark .band      { stroke: var(--lh-band); }
+#lamp-mark .lamp      { fill: var(--lh-lamp); }
 
 #brandcol {
   flex: 1;
@@ -141,6 +215,26 @@ body {
 
 #wordmark .beam { color: var(--gilt); }
 
+#gear {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-ghost);
+  width: 26px;
+  height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  cursor: default;
+  transition: background .12s ease, color .12s ease, border-color .12s ease, transform .35s ease;
+}
+
+#gear:hover {
+  background: var(--card);
+  border-color: var(--rule-strong);
+  color: var(--walnut-deep);
+  transform: rotate(45deg);
+}
+
 #winbtns {
   position: absolute;
   top: 0;
@@ -181,7 +275,7 @@ body {
 
 #searchwrap:focus-within {
   border-color: var(--gilt);
-  box-shadow: 0 0 0 3px rgba(168, 132, 63, .16), var(--shadow-soft);
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--shadow-soft);
 }
 
 #searchwrap .glass {
@@ -243,7 +337,7 @@ body {
 .chip.on {
   background: var(--walnut);
   border-color: var(--walnut);
-  color: #FBF5E9;
+  color: var(--on-accent);
 }
 
 /* Separates the tidy toggle from the type filters — they do different jobs. */
@@ -301,7 +395,7 @@ body {
   gap: 12px;
   align-items: center;
   padding: 0 20px 0 12px;
-  border-bottom: 1px solid rgba(227, 216, 195, .55);
+  border-bottom: 1px solid var(--row-line);
   cursor: default;
 }
 
@@ -416,7 +510,7 @@ body {
   gap: 10px;
   padding: 0 16px;
   border-top: 1px solid var(--rule);
-  background: linear-gradient(180deg, var(--paper) 0%, #EFE8DA 100%);
+  background: linear-gradient(180deg, var(--paper) 0%, var(--status-btm) 100%);
   font-size: 11.5px;
   color: var(--ink-faint);
 }
@@ -467,11 +561,11 @@ body {
 }
 
 #lamp.ready {
-  background: #6E8C4A;
-  box-shadow: 0 0 0 2px rgba(110, 140, 74, .18);
+  background: var(--ok);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
-#lamp.limited { background: var(--gilt); box-shadow: 0 0 0 2px rgba(168, 132, 63, .18); }
+#lamp.limited { background: var(--gilt); box-shadow: 0 0 0 2px var(--focus-ring); }
 
 @keyframes pulse {
   0%, 100% { opacity: .35; }
@@ -502,7 +596,7 @@ body {
   background: var(--card);
   border: 1px solid var(--rule-strong);
   border-radius: 9px;
-  box-shadow: 0 8px 30px rgba(74, 53, 36, .18);
+  box-shadow: 0 8px 30px var(--shadow-drop);
   display: none;
   max-height: 82vh;
   overflow-y: auto;
@@ -564,3 +658,132 @@ body {
 }
 
 #body { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+
+/* --------------------------------------------------------------- settings */
+
+#setwrap {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--paper-deep) 62%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+#setwrap.on { display: flex; }
+
+#settings {
+  width: min(470px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--rule-strong);
+  border-radius: 13px;
+  box-shadow: 0 18px 50px var(--shadow-drop);
+  padding: 6px 22px 18px;
+}
+
+.set-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 10px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 4px;
+}
+
+.set-head h2 {
+  font-family: var(--serif);
+  font-weight: normal;
+  font-size: 19px;
+  letter-spacing: .03em;
+  color: var(--walnut-deep);
+}
+
+#set-close {
+  border: 0;
+  background: transparent;
+  color: var(--ink-ghost);
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+
+#set-close:hover { background: var(--walnut-wash); color: var(--ink); }
+
+/* The whole row is the label, so anywhere on it flips the switch. */
+.set-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--rule);
+  cursor: default;
+}
+
+.set-text { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.set-title { font-size: 13.5px; color: var(--ink); }
+.set-desc { font-size: 12px; line-height: 1.55; color: var(--ink-faint); }
+
+.set-foot {
+  padding-top: 14px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-ghost);
+}
+
+.set-foot code {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+/* Switch, drawn from a checkbox so it keeps keyboard and label behaviour. */
+.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 0 0 auto;
+  position: relative;
+  width: 40px;
+  height: 23px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: var(--paper-deep);
+  border: 1px solid var(--rule-strong);
+  cursor: default;
+  transition: background .16s ease, border-color .16s ease;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 1px 2px var(--shadow-drop);
+  transition: transform .16s ease, background .16s ease;
+}
+
+.switch:checked {
+  background: var(--walnut);
+  border-color: var(--walnut);
+}
+
+.switch:checked::after {
+  transform: translateX(17px);
+  background: var(--on-accent);
+}
+
+.switch:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}

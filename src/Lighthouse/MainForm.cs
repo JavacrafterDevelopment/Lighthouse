@@ -28,6 +28,7 @@ public sealed class MainForm : Form
     private readonly IconProvider _icons = new();
     private readonly NotifyIcon _tray = new();
     private readonly ShellContextMenu _shellMenu = new();
+    private readonly Settings _settings = Settings.Load();
     private string _shellMenuPath = string.Empty;
 
     /// <summary>Highest query generation seen; page requests within it are never dropped.</summary>
@@ -39,20 +40,25 @@ public sealed class MainForm : Form
     private readonly string _initialFilter;
     private readonly bool _initialTidy;
     private readonly bool _openMenuOnStart;
+    private readonly bool _openSettingsOnStart;
 
     public MainForm(string initialQuery = "", string initialFilter = "",
-                    bool initialTidy = false, bool openMenuOnStart = false)
+                    bool initialTidy = false, bool openMenuOnStart = false,
+                    bool openSettingsOnStart = false)
     {
         _initialQuery = initialQuery;
         _initialFilter = initialFilter;
         _initialTidy = initialTidy;
         _openMenuOnStart = openMenuOnStart;
+        _openSettingsOnStart = openSettingsOnStart;
         Text = "Lighthouse";
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(760, 440);
         Size = new Size(1120, 700);
-        BackColor = ColorTranslator.FromHtml("#F3EDE1");
+        // Matches the page background so startup does not flash the wrong colour
+        // before WebView2 paints.
+        BackColor = ColorTranslator.FromHtml(_settings.IsDark ? "#191512" : "#F3EDE1");
         KeyPreview = true;
         DoubleBuffered = true;
 
@@ -114,15 +120,53 @@ public sealed class MainForm : Form
 
         _service.StatusChanged += OnIndexStatusChanged;
 
+        // Stamp the theme before any document script runs, so a dark install never
+        // flashes the light palette on the way in.
+        await core.AddScriptToExecuteOnDocumentCreatedAsync(
+            $"document.documentElement.dataset.theme = '{(_settings.IsDark ? "dark" : "light")}';");
+
         core.Navigate($"https://{VirtualHost}/index.html");
 
         _ = _service.StartAsync(Program.IsElevated);
         RegisterHotKey(Handle, HotkeyId, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, (uint)Keys.Space);
     }
 
+    private void SaveSettings(JsonElement root)
+    {
+        if (root.TryGetProperty("closeToTray", out var tray) &&
+            tray.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            _settings.CloseToTray = tray.GetBoolean();
+
+        if (root.TryGetProperty("theme", out var theme) && theme.ValueKind == JsonValueKind.String)
+            _settings.Theme = theme.GetString() == "dark" ? "dark" : "light";
+
+        _settings.Save();
+
+        BackColor = ColorTranslator.FromHtml(_settings.IsDark ? "#191512" : "#F3EDE1");
+        _tray.Text = _settings.CloseToTray
+            ? "Lighthouse — Ctrl+Shift+Space"
+            : "Lighthouse";
+    }
+
+    private void PostSettings()
+    {
+        var sb = new StringBuilder(128);
+        using (var w = new Utf8JsonWriterScope(sb))
+        {
+            w.Writer.WriteStartObject();
+            w.Writer.WriteString("evt", "settings");
+            w.Writer.WriteBoolean("closeToTray", _settings.CloseToTray);
+            w.Writer.WriteString("theme", _settings.IsDark ? "dark" : "light");
+            w.Writer.WriteEndObject();
+        }
+        Post(sb.ToString());
+    }
+
     /// <summary>Pushes anything the command line asked for, once the page can hear it.</summary>
     private void SendStartupState()
     {
+        PostSettings();
+
         if (_initialQuery.Length > 0 || _initialFilter.Length > 0 || _initialTidy)
         {
             var sb = new StringBuilder();
@@ -139,6 +183,7 @@ public sealed class MainForm : Form
         }
 
         if (_openMenuOnStart) Post("{\"evt\":\"openMenu\"}");
+        if (_openSettingsOnStart) Post("{\"evt\":\"openSettings\"}");
 
         OnIndexStatusChanged(_service.Status);
     }
@@ -225,6 +270,10 @@ public sealed class MainForm : Form
 
                 case "reindex":
                     _ = _service.RebuildAsync(Program.IsElevated);
+                    break;
+
+                case "saveSettings":
+                    SaveSettings(root);
                     break;
 
             }
@@ -636,9 +685,14 @@ public sealed class MainForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
-        // Closing hides to the tray so the index (and the few seconds it took to
-        // build) survives. Exit from the tray menu really quits.
-        if (!_reallyClosing && e.CloseReason == CloseReason.UserClosing)
+        // By default closing hides to the tray so the index (and the few seconds it
+        // took to build) survives; Exit from the tray menu really quits. Turning the
+        // setting off makes the close button quit outright.
+        // The in-page close button reaches here through Form.Close(), which does not
+        // always report UserClosing, so accept None too. Shutdown, task manager and
+        // the tray's Exit all report something else and fall through to quitting.
+        bool userClosed = e.CloseReason is CloseReason.UserClosing or CloseReason.None;
+        if (_settings.CloseToTray && !_reallyClosing && userClosed)
         {
             e.Cancel = true;
             Hide();

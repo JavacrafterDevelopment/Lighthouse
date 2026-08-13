@@ -30,10 +30,25 @@ and only covers what your account can read. The status bar says which mode you a
 | **F5** | Re-index every drive from scratch |
 | **Ctrl+C** | Copy the full path |
 | **Ctrl+L** / **Ctrl+F** | Jump back to the search box |
+| **Ctrl+,** | Settings |
 | **Esc** | Clear the search, then hide to tray |
 
 Closing the window leaves Lighthouse in the tray so the index survives; **Exit**
-from the tray menu quits for real.
+from the tray menu quits for real. Turn that off in settings if you would rather
+the close button quit outright.
+
+## Settings
+
+The gear beside the wordmark, or **Ctrl+,**.
+
+- **Keep running when closed** — on by default. The window hides to the tray so the
+  index (and the seconds spent building it) survives and Ctrl+Shift+Space stays
+  instant. Off means the close button quits Lighthouse.
+- **Dark mode** — the same walnut and gilt, lit low. Applies immediately.
+
+Both are kept in `data\settings.json` beside the executable, so they travel with
+the folder like everything else. The theme is stamped onto the page before any
+script runs, so a dark install never flashes light on the way in.
 
 ### Command line
 

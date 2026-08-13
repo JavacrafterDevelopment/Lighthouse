@@ -27,6 +27,11 @@ const el = {
   lamp:       document.getElementById('lamp'),
   menu:       document.getElementById('menu'),
   reindex:    document.getElementById('reindex'),
+  gear:       document.getElementById('gear'),
+  setwrap:    document.getElementById('setwrap'),
+  setClose:   document.getElementById('set-close'),
+  setTray:    document.getElementById('set-tray'),
+  setDark:    document.getElementById('set-dark'),
 };
 
 const state = {
@@ -99,8 +104,10 @@ host.addEventListener('message', (e) => {
   if (m.evt === 'status')    return onStatus(m);
   if (m.evt === 'focus')     return focusSearch();
   if (m.evt === 'setQuery')  return setQuery(m.query, m.types, m.tidy);
-  if (m.evt === 'shellMenu') return onShellMenu(m);
-  if (m.evt === 'openMenu')  return openMenuWhenReady();
+  if (m.evt === 'shellMenu')    return onShellMenu(m);
+  if (m.evt === 'openMenu')     return openMenuWhenReady();
+  if (m.evt === 'settings')     return applySettings(m);
+  if (m.evt === 'openSettings') return openSettings();
   if (typeof m.seq === 'number') return onResults(m);
 });
 
@@ -418,6 +425,15 @@ el.rows.addEventListener('contextmenu', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  // While settings are open they own the keyboard, or typing would leak through
+  // to the search box behind the panel.
+  if (el.setwrap.classList.contains('on')) {
+    if (e.key === 'Escape') { e.preventDefault(); closeSettings(); }
+    return;
+  }
+
+  if (e.key === ',' && e.ctrlKey) { e.preventDefault(); openSettings(); return; }
+
   if (e.key === 'Escape') {
     if (el.menu.classList.contains('on')) { closeMenu(); return; }
     if (el.q.value) { el.q.value = ''; state.query = ''; el.clear.classList.remove('on'); runQuery(); }
@@ -691,6 +707,49 @@ function closeMenu() {
 
 document.addEventListener('mousedown', (e) => {
   if (!e.target.closest('.ctxmenu')) closeMenu();
+});
+
+/* settings ----------------------------------------------------------------
+   The host owns these: it applies the theme before the document loads and it
+   decides what the close button does. This panel just reflects and edits them. */
+
+function applySettings(s) {
+  el.setTray.checked = !!s.closeToTray;
+  el.setDark.checked = s.theme === 'dark';
+  document.documentElement.dataset.theme = s.theme === 'dark' ? 'dark' : 'light';
+
+  const close = document.querySelector('.winbtn.close');
+  if (close) close.title = s.closeToTray ? 'Close to tray' : 'Close';
+}
+
+function pushSettings() {
+  const theme = el.setDark.checked ? 'dark' : 'light';
+  document.documentElement.dataset.theme = theme;
+
+  const close = document.querySelector('.winbtn.close');
+  if (close) close.title = el.setTray.checked ? 'Close to tray' : 'Close';
+
+  host.postMessage({ cmd: 'saveSettings', closeToTray: el.setTray.checked, theme });
+}
+
+function openSettings() {
+  el.setwrap.classList.add('on');
+  el.setClose.focus();
+}
+
+function closeSettings() {
+  el.setwrap.classList.remove('on');
+  focusSearch();
+}
+
+el.gear.addEventListener('click', openSettings);
+el.setClose.addEventListener('click', closeSettings);
+el.setTray.addEventListener('change', pushSettings);
+el.setDark.addEventListener('change', pushSettings);
+
+// Clicking the dimmed surround closes; clicking the panel itself must not.
+el.setwrap.addEventListener('mousedown', (e) => {
+  if (e.target === el.setwrap) closeSettings();
 });
 
 /* boot -------------------------------------------------------------------- */

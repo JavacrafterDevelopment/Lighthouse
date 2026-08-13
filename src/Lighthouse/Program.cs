@@ -51,7 +51,8 @@ internal static class Program
             ArgValue(args, "--query", "-q") ?? string.Empty,
             NormaliseFilter(ArgValue(args, "--filter", "-f")),
             args.Contains("--tidy", StringComparer.OrdinalIgnoreCase),
-            args.Contains("--open-menu", StringComparer.OrdinalIgnoreCase)));
+            args.Contains("--open-menu", StringComparer.OrdinalIgnoreCase),
+            args.Contains("--settings", StringComparer.OrdinalIgnoreCase)));
     }
 
     /// <summary>Reads "--name value" from the command line.</summary>

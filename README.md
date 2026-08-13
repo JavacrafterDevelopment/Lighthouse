@@ -27,6 +27,7 @@ and only covers what your account can read. The status bar says which mode you a
 | **Enter** | Open the selected item |
 | **Ctrl+Enter** | Show it in Explorer |
 | **Menu key** / **Shift+F10** | Open the context menu for the selection |
+| **F5** | Re-index every drive from scratch |
 | **Ctrl+C** | Copy the full path |
 | **Ctrl+L** / **Ctrl+F** | Jump back to the search box |
 | **Esc** | Clear the search, then hide to tray |
@@ -39,6 +40,7 @@ from the tray menu quits for real.
 ```
 Lighthouse.exe --query minecraft     Open with a search already typed
 Lighthouse.exe --filter apps         Start with a filter on (apps|files|folders)
+Lighthouse.exe --tidy                Start with the clutter filter on
 Lighthouse.exe --no-elevate          Skip the admin prompt, use the folder walk
 ```
 
@@ -66,6 +68,17 @@ true prefix matches.
 - **Apps**, **Folders** and **Files** restrict the result type. Apps means anything
   you launch — `.exe`, `.lnk`, `.msi`, `.bat`, `.cmd`, `.com`, `.url`, `.appref-ms`,
   `.msc`, `.cpl`, `.scr`.
+- **Tidy** hides the machinery. One switch, no configuration: anything inside
+  `node_modules`, `.git`, `site-packages`, `WinSxS`, `$Recycle.Bin` and their
+  kind, plus build and platform artefacts (`.dll`, `.pdb`, `.obj`, `.pyc`, `.sys`,
+  `.manifest` …), NTFS metafiles and system-flagged files. On a typical dev
+  machine it removes roughly half the results — searching `min` here drops from
+  18,547 hits to 9,761, and the ones left are things a person was actually
+  looking for.
+
+  It works by marking each entry once per index, walking up the parent chain and
+  memoising the verdict on every ancestor it passes, so the check costs nothing
+  per keystroke.
 
 ## Right-clicking
 
@@ -109,6 +122,12 @@ start → anywhere, and only the rows actually on screen get sorted precisely.
 
 **Keeping it current.** `UsnMonitor` tails the NTFS change journal, so files
 created, renamed or deleted after startup are reflected without another scan.
+
+**Re-indexing.** The button at the bottom left (or **F5**) throws the index away
+and scans everything again — useful after moving a lot of files around, or on a
+non-NTFS volume where there is no journal to follow. It scans into a brand new
+index and swaps it in only when finished, so searching keeps working against the
+old one throughout, selection and scroll position intact.
 
 **Icons.** `IconProvider` asks the shell the same question Explorer asks. Types
 whose icon comes from the file association (`.zip`, `.txt`) are resolved from a

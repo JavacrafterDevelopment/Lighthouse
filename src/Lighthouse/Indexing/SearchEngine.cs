@@ -16,7 +16,9 @@ public sealed record SearchOptions(
     MatchMode Mode = MatchMode.Smart,
     TypeFilter Types = TypeFilter.All,
     bool IncludeHidden = true,
-    bool IncludeSystem = false);
+    bool IncludeSystem = false,
+    /// <summary>Hide the machinery: build output, package caches, system internals.</summary>
+    bool HideClutter = false);
 
 public sealed class SearchResult
 {
@@ -116,6 +118,8 @@ public sealed class SearchEngine
     {
         int indexCount = _index.Count;
         int version = _index.Version;
+
+        if (options.HideClutter) EnsureClutterMap();
 
         // Extending a query can only ever shrink the match set, so rescan the previous
         // results instead of the whole index. This is what keeps typing fluid.
@@ -229,8 +233,127 @@ public sealed class SearchEngine
 
         if (options.Types == TypeFilter.AppsOnly && (isDir || !IsRunnable(name))) return false;
 
+        if (options.HideClutter)
+        {
+            if ((f & FileIndex.FlagSystem) != 0) return false;
+            if (name.Length > 0 && name[0] == (byte)'$') return false;
+            if (!isDir && IsClutterExtension(name)) return false;
+            if (i < _clutterMap.Length && _clutterMap[i] == 2) return false;
+        }
+
         if (q.Length == 0) return true;
         return Tier(name, q, queryIsAscii, query, options.Mode) >= 0;
+    }
+
+    // ------------------------------------------------------- clutter filter
+
+    /// <summary>
+    /// Folders whose contents are machinery rather than anything a person went
+    /// looking for. Matched on the folder name anywhere in an item's path.
+    /// </summary>
+    private static readonly string[] ClutterFolders =
+    [
+        "node_modules", ".git", ".svn", ".hg", "__pycache__", ".pytest_cache",
+        "site-packages", "dist-packages", ".gradle", ".nuget", ".cargo", ".rustup",
+        ".vs", ".vscode-server", ".idea", ".cache", ".conda", ".m2", ".ivy2",
+        "winsxs", "$recycle.bin", "system volume information", "$windows.~bt",
+        "$windows.~ws", "$winreagent", "servicing", "installer", "assembly",
+        "packages", "package cache", "catroot2", "driverstore", "sxs",
+    ];
+
+    /// <summary>Extensions nobody searches for by name: build and platform artefacts.</summary>
+    private static readonly string[] ClutterExtensions =
+    [
+        "dll", "pdb", "obj", "lib", "exp", "ilk", "idb", "res", "tlog", "tlb",
+        "sys", "drv", "mui", "nls", "cat", "winmd", "pri", "manifest", "msix",
+        "pyc", "pyo", "pyd", "map", "sig", "etl", "evtx", "dmp", "mum", "cdf-ms",
+        "metagen", "resources", "nupkg", "so", "o", "a", "class", "jar.sha1",
+    ];
+
+    /// <summary>
+    /// Per-entry clutter verdict, computed once per index version. 0 = not worked out
+    /// yet, 1 = clean, 2 = clutter. Filled in lazily by walking up the parent chain,
+    /// which is effectively O(1) per entry because every ancestor gets memoised on
+    /// the way past.
+    /// </summary>
+    private byte[] _clutterMap = [];
+
+    /// <summary>
+    /// Grows the map to cover the index and resolves anything new. Verdicts already
+    /// worked out are kept, so a scan in progress costs a cheap scan rather than a
+    /// full recompute on every keystroke.
+    /// </summary>
+    private void EnsureClutterMap()
+    {
+        int count = _index.Count;
+        if (_clutterMap.Length < count)
+        {
+            var grown = new byte[Math.Max(count, _clutterMap.Length * 2)];
+            Array.Copy(_clutterMap, grown, _clutterMap.Length);
+            _clutterMap = grown;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (_clutterMap[i] == 0) ResolveClutter(i);
+        }
+    }
+
+    private void ResolveClutter(int index)
+    {
+        // A parent can sit at a higher index than its child — master file table order
+        // is arbitrary — so every index has to be range checked against the snapshot
+        // we are working with, not assumed to be in bounds.
+        var map = _clutterMap;
+        var parents = _index.Parents;
+        int limit = Math.Min(map.Length, parents.Length);
+
+        Span<int> chain = stackalloc int[64];
+        int depth = 0;
+        int cur = index;
+        byte verdict = 1;
+
+        while (cur >= 0 && cur < limit && depth < chain.Length)
+        {
+            if (map[cur] != 0) { verdict = map[cur]; break; }
+
+            var name = _index.NamePool.AsSpan(_index.NameOffsets[cur], _index.NameLengths[cur]);
+            if (_index.IsDirectory(cur) && IsClutterFolder(name)) { verdict = 2; break; }
+
+            chain[depth++] = cur;
+            int parent = parents[cur];
+            if (parent == cur) break;
+            cur = parent;
+        }
+
+        if (cur >= 0 && cur < map.Length && map[cur] == 0) map[cur] = verdict;
+        for (int d = depth - 1; d >= 0; d--) map[chain[d]] = verdict;
+    }
+
+    private static bool IsClutterFolder(ReadOnlySpan<byte> name) =>
+        MatchesAny(name, ClutterFolders);
+
+    private static bool IsClutterExtension(ReadOnlySpan<byte> name)
+    {
+        int dot = name.LastIndexOf((byte)'.');
+        if (dot < 0 || dot == name.Length - 1) return false;
+        return MatchesAny(name[(dot + 1)..], ClutterExtensions);
+    }
+
+    private static bool MatchesAny(ReadOnlySpan<byte> value, string[] candidates)
+    {
+        foreach (string candidate in candidates)
+        {
+            if (candidate.Length != value.Length) continue;
+
+            bool same = true;
+            for (int k = 0; k < value.Length; k++)
+            {
+                if (Fold[value[k]] != candidate[k]) { same = false; break; }
+            }
+            if (same) return true;
+        }
+        return false;
     }
 
     /// <summary>

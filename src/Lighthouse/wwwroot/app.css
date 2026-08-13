@@ -78,6 +78,44 @@ body {
 
 #brand svg { flex: 0 0 auto; }
 
+/* The light turns. Kept slow and low-contrast so it reads as atmosphere from the
+   corner of your eye rather than something demanding attention. */
+#lamp-mark .beam {
+  transform-origin: 12px 7.4px;
+  animation: lh-sweep 7s linear infinite, lh-beam 7s ease-in-out infinite;
+}
+
+#lamp-mark .glow {
+  transform-origin: 12px 7.4px;
+  animation: lh-glow 7s ease-in-out infinite;
+}
+
+@keyframes lh-sweep {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes lh-beam {
+  0%, 100% { opacity: .95; }   /* out to the right */
+  25%      { opacity: .18; }   /* down, into the ground */
+  50%      { opacity: .95; }   /* out to the left */
+  75%      { opacity: .45; }   /* up, past the roof */
+}
+
+/* Dim through the half-turn where the beam would be pointing away from us and
+   down into the ground. */
+@keyframes lh-glow {
+  0%,  100% { opacity: .22; transform: scale(1); }
+  22%       { opacity: .05; transform: scale(.82); }
+  50%       { opacity: .22; transform: scale(1); }
+  72%       { opacity: .10; transform: scale(.88); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #lamp-mark .beam { animation: none; opacity: .45; }
+  #lamp-mark .glow { animation: none; }
+}
+
 #wordmark {
   font-family: var(--serif);
   font-size: 16px;
@@ -191,6 +229,15 @@ body {
   background: var(--walnut);
   border-color: var(--walnut);
   color: #FBF5E9;
+}
+
+/* Separates the tidy toggle from the type filters — they do different jobs. */
+.chip-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 3px 2px;
+  background: var(--rule-strong);
+  opacity: .7;
 }
 
 /* -------------------------------------------------------- column header */
@@ -361,6 +408,33 @@ body {
 
 #status .sep { color: var(--rule-strong); }
 #status .grow { flex: 1; }
+
+/* Only offered once a scan has finished — re-indexing mid-scan makes no sense. */
+#reindex {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  cursor: default;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+
+#reindex.on { display: inline-flex; }
+
+#reindex:hover {
+  background: var(--card);
+  border-color: var(--rule-strong);
+  color: var(--walnut-deep);
+}
+
+#reindex:active { background: var(--walnut-wash); }
+#reindex svg { flex: 0 0 auto; }
 #status b { font-weight: 600; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
 #lamp {

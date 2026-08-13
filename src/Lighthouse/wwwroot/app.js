@@ -26,12 +26,14 @@ const el = {
   counts:     document.getElementById('counts'),
   lamp:       document.getElementById('lamp'),
   menu:       document.getElementById('menu'),
+  reindex:    document.getElementById('reindex'),
 };
 
 const state = {
   query:    '',
   mode:     'smart',
   types:    'all',
+  tidy:     false,      // hide build output, package caches and system machinery
   seq:      0,          // query generation; bumped whenever the result set changes
   reqId:    0,
   total:    0,
@@ -86,6 +88,7 @@ function fetchPage(page) {
     limit:  PAGE,
     mode:   state.mode,
     types:  state.types,
+    tidy:   state.tidy,
     hidden: true,
     system: false,
   });
@@ -95,7 +98,7 @@ host.addEventListener('message', (e) => {
   const m = e.data;
   if (m.evt === 'status')    return onStatus(m);
   if (m.evt === 'focus')     return focusSearch();
-  if (m.evt === 'setQuery')  return setQuery(m.query, m.types);
+  if (m.evt === 'setQuery')  return setQuery(m.query, m.types, m.tidy);
   if (m.evt === 'shellMenu') return onShellMenu(m);
   if (m.evt === 'openMenu')  return openMenuWhenReady();
   if (typeof m.seq === 'number') return onResults(m);
@@ -103,6 +106,12 @@ host.addEventListener('message', (e) => {
 
 function onResults(m) {
   if (m.seq !== state.seq) return;   // belongs to an older query
+
+  if (m.error) {
+    el.statusText.textContent = 'Search failed — ' + m.error;
+    el.lamp.className = '';
+    return;
+  }
 
   const page = Math.floor(m.offset / PAGE);
   state.pending.delete(page);
@@ -275,9 +284,13 @@ function onStatus(m) {
   state.phase = m.phase;
   state.indexed = m.count;
   el.statusText.textContent = m.message;
-  el.lamp.className = m.phase === 'scanning' || m.phase === 'starting' ? 'scanning'
+  const scanning = m.phase === 'scanning' || m.phase === 'starting';
+  el.lamp.className = scanning ? 'scanning'
                     : m.phase === 'limited' ? 'limited'
                     : m.phase === 'failed'  ? '' : 'ready';
+
+  // Offered only once a scan has settled, so it cannot be fired mid-scan.
+  el.reindex.classList.toggle('on', !scanning);
 
   // The index grows while scanning, so keep what is on screen current — without
   // disturbing the selection, the scroll position, or an open context menu.
@@ -369,6 +382,16 @@ el.clear.addEventListener('click', () => {
   el.q.focus();
 });
 
+function startReindex() {
+  if (!el.reindex.classList.contains('on')) return;  // a scan is already running
+  el.reindex.classList.remove('on');
+  el.statusText.textContent = 'Re-indexing';
+  el.lamp.className = 'scanning';
+  host.postMessage({ cmd: 'reindex' });
+}
+
+el.reindex.addEventListener('click', startReindex);
+
 el.scroller.addEventListener('scroll', () => {
   requestAnimationFrame(render);
 }, { passive: true });
@@ -421,6 +444,7 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     openMenuForSelection(e.shiftKey && e.key === 'ContextMenu');
   }
+  else if (e.key === 'F5') { e.preventDefault(); startReindex(); }
   else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); focusSearch(); }
   else if (e.key === 'f' && e.ctrlKey) { e.preventDefault(); focusSearch(); }
   else if (!e.ctrlKey && !e.altKey && e.key.length === 1 && document.activeElement !== el.q) {
@@ -433,7 +457,7 @@ function focusSearch() {
   el.q.select();
 }
 
-function setQuery(text, types) {
+function setQuery(text, types, tidy) {
   el.q.value = text || '';
   state.query = el.q.value;
   el.clear.classList.toggle('on', state.query.length > 0);
@@ -443,6 +467,11 @@ function setQuery(text, types) {
     document.querySelectorAll('.chip[data-filter="types"]').forEach((c) => {
       c.classList.toggle('on', c.dataset.value === types);
     });
+  }
+
+  if (tidy) {
+    state.tidy = true;
+    document.querySelector('.chip[data-filter="tidy"]')?.classList.add('on');
   }
 
   runQuery();
@@ -482,6 +511,9 @@ document.querySelectorAll('.chip').forEach((chip) => {
       const on = state.mode === value;
       state.mode = on ? 'smart' : value;
       chip.classList.toggle('on', !on);
+    } else if (filter === 'tidy') {
+      state.tidy = !state.tidy;
+      chip.classList.toggle('on', state.tidy);
     }
     runQuery();
     el.q.focus();

@@ -16,6 +16,9 @@ public sealed record IndexStatus(
 /// <summary>
 /// Owns the index: scans every NTFS volume at startup, keeps it current from the
 /// change journal, and hands the search engine out to the UI.
+///
+/// A rebuild scans into a brand new index and swaps it in only once it is complete,
+/// so searching keeps working against the old one the whole time it runs.
 /// </summary>
 public sealed class IndexService : IDisposable
 {
@@ -23,11 +26,12 @@ public sealed class IndexService : IDisposable
     private const int ProgressEvery = 20_000;
 
     private readonly CancellationTokenSource _cts = new();
-    private readonly List<VolumeScanner> _scanners = [];
+    private CancellationTokenSource _monitorCts = new();
     private readonly List<UsnMonitor> _monitors = [];
+    private int _rebuilding;
 
-    public FileIndex Index { get; } = new();
-    public SearchEngine Search { get; }
+    public FileIndex Index { get; private set; } = new();
+    public SearchEngine Search { get; private set; }
     public IndexStatus Status { get; private set; } =
         new(IndexPhase.Starting, "Starting up", 0, 0, 0, 0);
 
@@ -35,17 +39,51 @@ public sealed class IndexService : IDisposable
 
     public IndexService() => Search = new SearchEngine(Index);
 
-    public Task StartAsync(bool elevated) =>
-        Task.Run(() => Build(elevated, _cts.Token), _cts.Token);
+    /// <summary>True while a scan is running, so the UI can hide the re-index button.</summary>
+    public bool IsBusy => Volatile.Read(ref _rebuilding) != 0;
 
-    private void Build(bool elevated, CancellationToken ct)
+    public Task StartAsync(bool elevated) => Run(elevated, Index, Search, rebuild: false);
+
+    /// <summary>
+    /// Throws away the current index and scans everything again. Safe to call while
+    /// the app is in use; returns immediately if a scan is already running.
+    /// </summary>
+    public Task RebuildAsync(bool elevated)
+    {
+        var fresh = new FileIndex();
+        return Run(elevated, fresh, new SearchEngine(fresh), rebuild: true);
+    }
+
+    private Task Run(bool elevated, FileIndex target, SearchEngine search, bool rebuild)
+    {
+        if (Interlocked.Exchange(ref _rebuilding, 1) != 0) return Task.CompletedTask;
+
+        return Task.Run(() =>
+        {
+            try
+            {
+                Build(elevated, target, search, rebuild, _cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutting down.
+            }
+            finally
+            {
+                Volatile.Write(ref _rebuilding, 0);
+            }
+        }, _cts.Token);
+    }
+
+    private void Build(bool elevated, FileIndex target, SearchEngine search, bool rebuild, CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
         var volumes = GetCandidateVolumes();
+        var scanners = new List<VolumeScanner>();
 
         Report(new IndexStatus(IndexPhase.Scanning,
-            elevated ? "Reading the file table" : "Scanning folders",
-            0, 0, volumes.Count, sw.ElapsedMilliseconds));
+            rebuild ? "Re-indexing" : elevated ? "Reading the file table" : "Scanning folders",
+            rebuild ? Index.Count : 0, 0, volumes.Count, sw.ElapsedMilliseconds));
 
         int done = 0;
         var failures = new List<string>();
@@ -61,8 +99,8 @@ public sealed class IndexService : IDisposable
                 try
                 {
                     var scanner = new VolumeScanner(letter);
-                    scanner.Scan(Index, ct);
-                    _scanners.Add(scanner);
+                    scanner.Scan(target, ct);
+                    scanners.Add(scanner);
                     scanned = true;
                 }
                 catch (OperationCanceledException) { return; }
@@ -76,7 +114,7 @@ public sealed class IndexService : IDisposable
             {
                 try
                 {
-                    WalkVolume(letter, ct);
+                    WalkVolume(letter, target, search, rebuild, ct);
                 }
                 catch (OperationCanceledException) { return; }
                 catch (Exception ex)
@@ -87,30 +125,45 @@ public sealed class IndexService : IDisposable
 
             done++;
             Report(new IndexStatus(IndexPhase.Scanning,
-                $"Indexed {letter}:",
-                Index.Count, done, volumes.Count, sw.ElapsedMilliseconds));
+                rebuild ? $"Re-indexing {letter}:" : $"Indexed {letter}:",
+                rebuild ? Index.Count : target.Count, done, volumes.Count, sw.ElapsedMilliseconds));
         }
 
-        Search.Invalidate();
+        // Swap the finished index in as one step; until now every search has been
+        // running against the previous one.
+        StopMonitors();
+        Index = target;
+        Search = search;
+        search.Invalidate();
 
         if (elevated)
         {
-            foreach (var scanner in _scanners)
+            _monitorCts = new CancellationTokenSource();
+            foreach (var scanner in scanners)
             {
-                var monitor = new UsnMonitor(scanner, Index, Search);
-                monitor.Start(_cts.Token);
+                var monitor = new UsnMonitor(scanner, target, search);
+                monitor.Start(_monitorCts.Token);
                 _monitors.Add(monitor);
             }
         }
 
         string message = elevated
-            ? $"{Index.Count:N0} items indexed"
-            : $"{Index.Count:N0} items indexed — limited mode, run as administrator for the full drive index";
+            ? $"{target.Count:N0} items indexed"
+            : $"{target.Count:N0} items indexed — limited mode, run as administrator for the full drive index";
         if (failures.Count > 0) message += $" ({failures.Count} volume(s) skipped)";
 
         Report(new IndexStatus(
             elevated ? IndexPhase.Ready : IndexPhase.Limited,
-            message, Index.Count, done, volumes.Count, sw.ElapsedMilliseconds));
+            message, target.Count, done, volumes.Count, sw.ElapsedMilliseconds));
+    }
+
+    private void StopMonitors()
+    {
+        _monitorCts.Cancel();
+        foreach (var m in _monitors) m.Dispose();
+        _monitors.Clear();
+        _monitorCts.Dispose();
+        _monitorCts = new CancellationTokenSource();
     }
 
     private static List<DriveInfo> GetCandidateVolumes()
@@ -137,11 +190,11 @@ public sealed class IndexService : IDisposable
     /// Much slower than the journal scan but needs no special rights, and results stream
     /// in as it goes so the UI is usable immediately.
     /// </summary>
-    private void WalkVolume(char letter, CancellationToken ct)
+    private void WalkVolume(char letter, FileIndex target, SearchEngine search, bool rebuild, CancellationToken ct)
     {
         string root = $"{letter}:";
-        int rootIndex = Index.Add(Encoding.ASCII.GetBytes(root), -1,
-                                  FileIndex.FlagDirectory | FileIndex.FlagVolumeRoot);
+        int rootIndex = target.Add(Encoding.ASCII.GetBytes(root), -1,
+                                   FileIndex.FlagDirectory | FileIndex.FlagVolumeRoot);
 
         var queue = new Queue<(string Path, int Index)>();
         queue.Enqueue((root + "\\", rootIndex));
@@ -185,20 +238,23 @@ public sealed class IndexService : IDisposable
                 if ((attrs & FileAttributes.System) != 0) flags |= FileIndex.FlagSystem;
 
                 int len = Encoding.UTF8.GetBytes(child.Name, buffer);
-                int entry = Index.Add(buffer.AsSpan(0, len), parent, flags);
+                int entry = target.Add(buffer.AsSpan(0, len), parent, flags);
 
                 if (isDir) queue.Enqueue((child.FullName, entry));
 
                 // Publish periodically so results fill in during a long walk instead of
-                // the list staying empty until the whole volume is finished.
+                // the list staying empty until the whole volume is finished. During a
+                // rebuild the live index is untouched, so only the count moves.
                 if (++sinceReport >= ProgressEvery)
                 {
                     sinceReport = 0;
-                    Search.Invalidate();
+                    if (!rebuild) search.Invalidate();
                     Report(Status with
                     {
-                        Message = $"Scanning {letter}: — {Index.Count:N0} items",
-                        FileCount = Index.Count,
+                        Message = rebuild
+                            ? $"Re-indexing {letter}: — {target.Count:N0} items"
+                            : $"Scanning {letter}: — {target.Count:N0} items",
+                        FileCount = rebuild ? Index.Count : target.Count,
                     });
                 }
             }
@@ -214,7 +270,8 @@ public sealed class IndexService : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
-        foreach (var m in _monitors) m.Dispose();
+        StopMonitors();
+        _monitorCts.Dispose();
         _cts.Dispose();
     }
 }

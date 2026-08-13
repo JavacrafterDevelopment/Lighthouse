@@ -50,6 +50,7 @@ internal static class Program
         Application.Run(new MainForm(
             ArgValue(args, "--query", "-q") ?? string.Empty,
             NormaliseFilter(ArgValue(args, "--filter", "-f")),
+            args.Contains("--tidy", StringComparer.OrdinalIgnoreCase),
             args.Contains("--open-menu", StringComparer.OrdinalIgnoreCase)));
     }
 

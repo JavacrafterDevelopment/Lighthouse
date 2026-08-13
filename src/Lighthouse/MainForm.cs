@@ -37,12 +37,15 @@ public sealed class MainForm : Form
 
     private readonly string _initialQuery;
     private readonly string _initialFilter;
+    private readonly bool _initialTidy;
     private readonly bool _openMenuOnStart;
 
-    public MainForm(string initialQuery = "", string initialFilter = "", bool openMenuOnStart = false)
+    public MainForm(string initialQuery = "", string initialFilter = "",
+                    bool initialTidy = false, bool openMenuOnStart = false)
     {
         _initialQuery = initialQuery;
         _initialFilter = initialFilter;
+        _initialTidy = initialTidy;
         _openMenuOnStart = openMenuOnStart;
         Text = "Lighthouse";
         FormBorderStyle = FormBorderStyle.None;
@@ -120,7 +123,7 @@ public sealed class MainForm : Form
     /// <summary>Pushes anything the command line asked for, once the page can hear it.</summary>
     private void SendStartupState()
     {
-        if (_initialQuery.Length > 0 || _initialFilter.Length > 0)
+        if (_initialQuery.Length > 0 || _initialFilter.Length > 0 || _initialTidy)
         {
             var sb = new StringBuilder();
             using (var w = new Utf8JsonWriterScope(sb))
@@ -129,6 +132,7 @@ public sealed class MainForm : Form
                 w.Writer.WriteString("evt", "setQuery");
                 w.Writer.WriteString("query", _initialQuery);
                 if (_initialFilter.Length > 0) w.Writer.WriteString("types", _initialFilter);
+                if (_initialTidy) w.Writer.WriteBoolean("tidy", true);
                 w.Writer.WriteEndObject();
             }
             Post(sb.ToString());
@@ -219,6 +223,10 @@ public sealed class MainForm : Form
                     _shellMenu.Release();
                     break;
 
+                case "reindex":
+                    _ = _service.RebuildAsync(Program.IsElevated);
+                    break;
+
             }
         }
         catch (Exception ex)
@@ -245,7 +253,8 @@ public sealed class MainForm : Form
                 _ => TypeFilter.All,
             },
             IncludeHidden: !root.TryGetProperty("hidden", out var h) || h.GetBoolean(),
-            IncludeSystem: root.TryGetProperty("system", out var s) && s.GetBoolean());
+            IncludeSystem: root.TryGetProperty("system", out var s) && s.GetBoolean(),
+            HideClutter: root.TryGetProperty("tidy", out var t) && t.GetBoolean());
 
         int seq = root.TryGetProperty("seq", out var seqEl) ? seqEl.GetInt32() : 0;
         _latestSeq = Math.Max(_latestSeq, seq);
@@ -256,11 +265,41 @@ public sealed class MainForm : Form
             // skip the work. Paging requests share a generation, so they survive.
             if (seq < _latestSeq) return string.Empty;
 
-            var result = _service.Search.Search(query, options, offset, limit);
-            return BuildSearchResponse(id, seq, result);
+            try
+            {
+                var result = _service.Search.Search(query, options, offset, limit);
+                return BuildSearchResponse(id, seq, result);
+            }
+            catch (Exception ex)
+            {
+                // Never leave the list silently blank: say what went wrong.
+                System.Diagnostics.Debug.WriteLine($"search failed: {ex}");
+                return BuildSearchError(id, seq, ex);
+            }
         });
 
         if (payload.Length > 0 && seq >= _latestSeq) Post(payload);
+    }
+
+    private static string BuildSearchError(int id, int seq, Exception ex)
+    {
+        var sb = new StringBuilder(256);
+        using (var scope = new Utf8JsonWriterScope(sb))
+        {
+            var w = scope.Writer;
+            w.WriteStartObject();
+            w.WriteNumber("id", id);
+            w.WriteNumber("seq", seq);
+            w.WriteNumber("total", 0);
+            w.WriteNumber("offset", 0);
+            w.WriteNumber("us", 0);
+            w.WriteNumber("indexed", 0);
+            w.WriteString("error", ex.GetType().Name + ": " + ex.Message);
+            w.WriteStartArray("rows");
+            w.WriteEndArray();
+            w.WriteEndObject();
+        }
+        return sb.ToString();
     }
 
     private string BuildSearchResponse(int id, int seq, SearchResult result)

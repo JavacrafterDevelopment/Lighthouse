@@ -33,6 +33,18 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2957.106" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <!-- The WebView2 package references its WinForms and WPF wrappers side by side.
+         Only the WinForms one is used here; the WPF one brings a second WindowsBase
+         version along, which MSBuild reports as an unresolvable conflict (MSB3277)
+         on every single build. Nothing loads the WPF wrapper at runtime and
+         build.ps1 drops it from the published folder, so the conflict has no effect
+         beyond the noise — demote it to a message rather than let it bury real
+         warnings. The package injects the reference through its own transitive
+         targets, so it cannot simply be removed from the item group. -->
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- The HTML/CSS/JS front-end is copied next to the exe and mounted
          into WebView2 as a virtual host. -->

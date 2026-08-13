@@ -155,14 +155,24 @@ menu's plain **Open** is routed the same way, detected by its canonical verb via
 
 ## Building from source
 
-Requires the .NET 9 SDK.
+Requires the .NET 9 SDK. Double-click **`build.bat`**, or from a prompt:
+
+```
+build.bat
+```
+
+Output lands in `dist\Lighthouse`. Add `-Zip` to also produce a distributable
+archive — arguments are passed straight through.
+
+`build.bat` is only a wrapper so you never have to type the execution-policy
+incantation; the real script is `build.ps1` and can still be run directly:
 
 ```
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-Output lands in `dist\Lighthouse`. Add `-Zip` to also produce a distributable
-archive.
+The wrapper keeps the console open when it was double-clicked, so you can read
+the result. Set `LIGHTHOUSE_NOPAUSE=1` if something else is calling it.
 
 ```
 src/Lighthouse/

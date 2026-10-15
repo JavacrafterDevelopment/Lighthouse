@@ -239,3 +239,22 @@ tools/make-icon.ps1       draws lighthouse.ico
   hosting `IContextMenu` in an elevated process; Explorer has the same behaviour
   when it is itself elevated. Third-party shell extension DLLs are likewise
   loaded into the elevated process, exactly as Explorer loads them.
+
+## Releases
+
+Push a version tag and [the Release workflow](.github/workflows/release.yml) does
+the rest:
+
+```bash
+# bump <Version> in src/Lighthouse/Lighthouse.csproj, e.g. to 0.0.2, then:
+git commit -am "Release 0.0.2"
+git tag v0.0.2
+git push origin main v0.0.2
+```
+
+It builds with `build.ps1`, packs `dist\Lighthouse` as `Lighthouse-windows-x64.zip`
+with a manifest of every file's SHA-256 (`tools/release-package.ps1`), publishes the
+release, and writes `update.json` to the `updates` branch
+(`tools/publish-update.ps1`). The
+[Javacrafter Launcher](https://github.com/JavacrafterDevelopment/Launcher) reads
+that file to offer the update and checks every file against it before installing.

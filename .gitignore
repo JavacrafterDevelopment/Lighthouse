@@ -18,3 +18,6 @@ data/
 .vs/
 .idea/
 *.user
+
+# Packaged release output (tools/release-package.ps1)
+/release/

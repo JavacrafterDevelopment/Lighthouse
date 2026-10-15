@@ -37,6 +37,12 @@ Closing the window leaves Lighthouse in the tray so the index survives; **Exit**
 from the tray menu quits for real. Turn that off in settings if you would rather
 the close button quit outright.
 
+Only one Lighthouse runs per folder: starting it again brings the running one
+forward instead of building a second index. `Lighthouse.exe --quit` asks the
+running one to exit, exactly as **Exit** in the tray menu would, without opening a
+window or asking for elevation. That works even when Lighthouse is running as
+administrator, and it's what the Javacrafter Launcher's **Stop** button uses.
+
 ## Settings
 
 **Settings** at the bottom of the window, beside Re-index, or **Ctrl+,**.

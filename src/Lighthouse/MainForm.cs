@@ -767,6 +767,20 @@ public sealed class MainForm : Form
         else ShowFromTray();
     }
 
+    /// <summary>Another launch of Lighthouse asked this copy to come forward.</summary>
+    internal void ShowFromSignal() => ShowFromTray();
+
+    /// <summary>
+    /// <c>Lighthouse.exe --quit</c> (the launcher's Stop button) asked this copy to
+    /// exit: the same as Exit in the tray menu, so settings are saved and the tray
+    /// icon removed.
+    /// </summary>
+    internal void QuitFromSignal()
+    {
+        _reallyClosing = true;
+        Close();
+    }
+
     private void ShowFromTray()
     {
         Show();

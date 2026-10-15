@@ -38,6 +38,19 @@ internal static class Program
             return;
         }
 
+        // Asks the running copy to exit, as tray → Exit would, and exits itself
+        // without a window or an elevation prompt. The Javacrafter Launcher's Stop
+        // button runs this.
+        if (args.Contains("--quit", StringComparer.OrdinalIgnoreCase))
+        {
+            Instance.Signal("Quit");
+            return;
+        }
+
+        // Already running from this folder: bring that copy forward instead of
+        // building a second index (and before asking for elevation again).
+        if (Instance.Signal("Show")) return;
+
         // Reading the NTFS master file table requires a raw volume handle, which
         // requires administrator. Ask once; if the user says no we fall back to a
         // (slower) directory walk rather than failing outright.
@@ -46,13 +59,22 @@ internal static class Program
             if (TryRelaunchElevated(args)) return;
         }
 
+        // Two launches at once can both get this far; the second one yields.
+        if (!Instance.Claim())
+        {
+            Instance.Signal("Show");
+            return;
+        }
+
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm(
+        var form = new MainForm(
             ArgValue(args, "--query", "-q") ?? string.Empty,
             NormaliseFilter(ArgValue(args, "--filter", "-f")),
             args.Contains("--tidy", StringComparer.OrdinalIgnoreCase),
             args.Contains("--open-menu", StringComparer.OrdinalIgnoreCase),
-            args.Contains("--settings", StringComparer.OrdinalIgnoreCase)));
+            args.Contains("--settings", StringComparer.OrdinalIgnoreCase));
+        form.HandleCreated += (_, _) => Instance.Listen(form);
+        Application.Run(form);
     }
 
     /// <summary>Reads "--name value" from the command line.</summary>

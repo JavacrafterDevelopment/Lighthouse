@@ -25,7 +25,7 @@
     <Product>Lighthouse</Product>
     <AssemblyTitle>Lighthouse</AssemblyTitle>
     <Company>Lighthouse</Company>
-    <Version>0.0.1</Version>
+    <Version>0.0.2</Version>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 

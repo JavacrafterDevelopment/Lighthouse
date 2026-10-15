@@ -2,14 +2,14 @@
   "schema": 1,
   "channels": {
     "beta": {
-      "version": "0.0.1",
-      "published": "2026-10-15T01:30:36Z",
-      "notes": "**Full Changelog**: https://github.com/JavacrafterDevelopment/Lighthouse/commits/v0.0.1",
-      "page": "https://github.com/JavacrafterDevelopment/Lighthouse/releases/tag/v0.0.1",
+      "version": "0.0.2",
+      "published": "2026-10-15T02:22:36Z",
+      "notes": "**Full Changelog**: https://github.com/JavacrafterDevelopment/Lighthouse/compare/v0.0.1...v0.0.2",
+      "page": "https://github.com/JavacrafterDevelopment/Lighthouse/releases/tag/v0.0.2",
       "package": {
-        "url": "https://github.com/JavacrafterDevelopment/Lighthouse/releases/download/v0.0.1/Lighthouse-windows-x64.zip",
-        "size": 48488413,
-        "sha256": "8929e44398ed6e97812e2aab2dec5a90d85ac3f8dba8fc11c712df06af84da9d"
+        "url": "https://github.com/JavacrafterDevelopment/Lighthouse/releases/download/v0.0.2/Lighthouse-windows-x64.zip",
+        "size": 48493640,
+        "sha256": "21e574d8ba9f3b990eed2581e6913bedefeb9e1f5ccac1aa298de2ff4b726936"
       },
       "exe": "Lighthouse.exe",
       "files": [
@@ -61,17 +61,17 @@
         {
           "path": "Lighthouse.deps.json",
           "size": 33661,
-          "sha256": "be2fe9f7709eb58e57be582c06269f40db3a9edd37e5bc77736c01c8c8908e96"
+          "sha256": "6444d72c62f5920792dca8557a82b4110399e1f4568650af8e69b09a86c2e909"
         },
         {
           "path": "Lighthouse.dll",
-          "size": 266240,
-          "sha256": "ed47fbbb0c6c6cab8a14345c894aa79136b903a065b0771f5be6c7eed8a40e74"
+          "size": 278528,
+          "sha256": "565296a23e6aa5e38cbb0e8a7afc4bb7aa3a43f35403b813b5e3092a51d7c51f"
         },
         {
           "path": "Lighthouse.exe",
           "size": 170496,
-          "sha256": "3679db645da76f13ae4cb69774ef41b99d634f5982f6384ea49b036eeb1b11f8"
+          "sha256": "3e8ab772dc49410c7a0ca4b8819b334a9185e29876e11edb9543729c999474d8"
         },
         {
           "path": "Lighthouse.runtimeconfig.json",
@@ -170,8 +170,8 @@
         },
         {
           "path": "README.md",
-          "size": 12818,
-          "sha256": "fea89c1561378369a04542af352e3d151d66cfeea73e050823f80f14dbc4122b"
+          "size": 13219,
+          "sha256": "2e38e123308d899fcb2daaae5c5bb2154d5aa379d7e2c88e98a2e057038de862"
         },
         {
           "path": "runtimes/win-x64/native/WebView2Loader.dll",
@@ -1131,14 +1131,14 @@
       ]
     },
     "stable": {
-      "version": "0.0.1",
-      "published": "2026-10-15T01:30:36Z",
-      "notes": "**Full Changelog**: https://github.com/JavacrafterDevelopment/Lighthouse/commits/v0.0.1",
-      "page": "https://github.com/JavacrafterDevelopment/Lighthouse/releases/tag/v0.0.1",
+      "version": "0.0.2",
+      "published": "2026-10-15T02:22:36Z",
+      "notes": "**Full Changelog**: https://github.com/JavacrafterDevelopment/Lighthouse/compare/v0.0.1...v0.0.2",
+      "page": "https://github.com/JavacrafterDevelopment/Lighthouse/releases/tag/v0.0.2",
       "package": {
-        "url": "https://github.com/JavacrafterDevelopment/Lighthouse/releases/download/v0.0.1/Lighthouse-windows-x64.zip",
-        "size": 48488413,
-        "sha256": "8929e44398ed6e97812e2aab2dec5a90d85ac3f8dba8fc11c712df06af84da9d"
+        "url": "https://github.com/JavacrafterDevelopment/Lighthouse/releases/download/v0.0.2/Lighthouse-windows-x64.zip",
+        "size": 48493640,
+        "sha256": "21e574d8ba9f3b990eed2581e6913bedefeb9e1f5ccac1aa298de2ff4b726936"
       },
       "exe": "Lighthouse.exe",
       "files": [
@@ -1190,17 +1190,17 @@
         {
           "path": "Lighthouse.deps.json",
           "size": 33661,
-          "sha256": "be2fe9f7709eb58e57be582c06269f40db3a9edd37e5bc77736c01c8c8908e96"
+          "sha256": "6444d72c62f5920792dca8557a82b4110399e1f4568650af8e69b09a86c2e909"
         },
         {
           "path": "Lighthouse.dll",
-          "size": 266240,
-          "sha256": "ed47fbbb0c6c6cab8a14345c894aa79136b903a065b0771f5be6c7eed8a40e74"
+          "size": 278528,
+          "sha256": "565296a23e6aa5e38cbb0e8a7afc4bb7aa3a43f35403b813b5e3092a51d7c51f"
         },
         {
           "path": "Lighthouse.exe",
           "size": 170496,
-          "sha256": "3679db645da76f13ae4cb69774ef41b99d634f5982f6384ea49b036eeb1b11f8"
+          "sha256": "3e8ab772dc49410c7a0ca4b8819b334a9185e29876e11edb9543729c999474d8"
         },
         {
           "path": "Lighthouse.runtimeconfig.json",
@@ -1299,8 +1299,8 @@
         },
         {
           "path": "README.md",
-          "size": 12818,
-          "sha256": "fea89c1561378369a04542af352e3d151d66cfeea73e050823f80f14dbc4122b"
+          "size": 13219,
+          "sha256": "2e38e123308d899fcb2daaae5c5bb2154d5aa379d7e2c88e98a2e057038de862"
         },
         {
           "path": "runtimes/win-x64/native/WebView2Loader.dll",
